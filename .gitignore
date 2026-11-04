@@ -16,3 +16,9 @@ frontend/node_modules/.tmp/
 # Env / OS
 .env
 .DS_Store
+
+# External experimental datasets (keep raw PHM archive and extracted data out of Git)
+data/external/phm2019/raw/
+data/external/phm2019/labels.csv
+data/external/phm2019/*.xlsx
+data/external/phm2019/*.xlsm

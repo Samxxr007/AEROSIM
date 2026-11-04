@@ -145,3 +145,20 @@ Qualified material datasets with scatter bands; flight-test-derived response mod
 ## 13. Repository documents
 
 `PROJECT_PLAN.md` · `METHODOLOGY.md` · `MODEL_ASSUMPTIONS.md` · `VALIDATION_REPORT.md` · `API_DOCUMENTATION.md` · `DEMO_SCRIPT.md` · `data/README.md` · `.env.example`
+
+
+## External experimental validation — PHM 2019 crack growth
+
+AeroSim now includes a separate loader and validation panel for the **PHM 2019 Fatigue Crack Growth in Aluminum Lap Joint** experiment. The dataset contains laboratory fatigue tests with Lamb-wave signals and optical crack-length measurements. It is used as an external crack-growth benchmark only; it is not aircraft flight telemetry and is never inserted into the aircraft fleet's flight records.
+
+The challenge documentation identifies T1–T6 as the labelled training specimens. T7–T8 are validation specimens without released crack-length ground truth, so AeroSim excludes them from supervised scoring. The external benchmark runs a within-specimen rolling-origin, one-step-ahead comparison of last-value carry-forward and a monotone-clipped linear trend, reporting MAE and RMSE. It does not claim a Paris-law calibration or RUL-to-failure validation.
+
+Download and extract the archive under data/external/phm2019/raw/. The backend attempts to read the optical crack-length tables from Description_T1.xlsx through Description_T6.xlsx. If your archive uses a different workbook layout, prepare data/external/phm2019/labels.csv with columns specimen,cycle,crack_length_mm; see data/external/phm2019/labels.template.csv. The loader scans the signal files for time,ch1,ch2 samples and reports descriptive signal-feature correlations where cycle labels can be matched.
+
+See data/external/phm2019/README.md for download, placement, provenance and validation details.
+
+## Historical-data ingestion notes
+
+Uploaded operational summaries and stress time histories are now retained as individually traceable records in the component history view. Raw stress samples are preserved alongside their rainflow summary. These records are not automatically converted into sensor observations or applied to the twin's damage state: doing so requires a completed-flight linkage and a validated mapping from the recorded load channel to the specific component's geometry and load path.
+
+Backend and frontend checks run in GitHub Actions on pushes to main and pull requests.

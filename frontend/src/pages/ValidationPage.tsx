@@ -1,7 +1,7 @@
 import { RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api/client'
-import type { Experiment } from '../api/types'
+import type { Experiment, PHM2019Report } from '../api/types'
 import { SeriesChart } from '../components/charts'
 import { Callout, Card, ErrorBox, Field, PageHeader, Spinner, Stat } from '../components/ui'
 import { useAppStore } from '../store/useAppStore'
@@ -15,6 +15,7 @@ export default function ValidationPage() {
   const { selectedComponentId, setSelectedComponentId, refreshKey } = useAppStore()
   const comps = useApi(() => api.components({ modelled: true }), [refreshKey])
   const { data, error, loading, refetch } = useApi(() => api.validation(force, selectedComponentId), [force, selectedComponentId, refreshKey])
+  const phm = useApi(() => api.phm2019(), [refreshKey])
   const [open, setOpen] = useState<string | null>(null)
   const exp = data?.experiment
   const scale = exp ? stateLabel(exp.key_metric).scale : 1
@@ -24,6 +25,7 @@ export default function ValidationPage() {
       <PageHeader title="Validation" lede="Actual results of the backend test-suite (pytest, run on request) and a chronological, flight-by-flight experiment on the selected component's own completed flights: Model A (static physics), Model B (operationally calibrated), Model C (two-stage with inspection evidence) and C-sparse (only the first inspection), all measured against the hidden reference that generated the observations. Nothing on this page is hard-coded." actions={<><Field label="Component instance"><select className="input w-[300px]" value={selectedComponentId} onChange={(e) => setSelectedComponentId(e.target.value)}>{(comps.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.id}</option>)}</select></Field><button className="btn-secondary mt-4" onClick={() => { setForce(true); refetch() }} disabled={loading}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Re-run tests</button></>} />
       {loading && !data && <Spinner label="Running the test-suite and the chronological experiment…" />}
       <ErrorBox error={error} />
+      <PHMBenchmark report={phm.data} loading={phm.loading} error={phm.error} onRefresh={phm.refetch} />
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -95,6 +97,77 @@ export default function ValidationPage() {
         </>
       )}
     </div>
+  )
+}
+
+
+function PHMBenchmark({ report, loading, error, onRefresh }: {
+  report?: PHM2019Report
+  loading: boolean
+  error?: unknown
+  onRefresh: () => void
+}) {
+  const metric = (value: number | null | undefined) => value == null ? '—' : fmt.num(value, 3)
+  return (
+    <Card title="External experimental benchmark — PHM 2019 aluminum lap joint"
+      subtitle="Independent crack-growth validation using optical measurements; never mixed with synthetic aircraft flights."
+      actions={<button className="btn-secondary" onClick={onRefresh} disabled={loading}><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh dataset</button>}>
+      {loading && !report && <Spinner label="Checking the local PHM dataset folder…" />}
+      {error && <ErrorBox error={error} />}
+      {report?.status === 'not_ready' && (
+        <Callout kind="warning" title="Dataset files not detected">
+          <div className="space-y-2">
+            <p>Download the raw PHM 2019 archive and extract it under <span className="num">data/external/phm2019/raw/</span>. AeroSim reads the optical crack-length tables from the T1–T6 specimen description workbooks.</p>
+            <p><a className="text-accent underline" href={report.download_url} target="_blank" rel="noreferrer">Download the PHM archive from the PHM Society mirror</a> · <a className="text-accent underline" href={report.source_url} target="_blank" rel="noreferrer">NASA dataset record</a></p>
+            <ul className="list-disc pl-5">{report.instructions?.map((line) => <li key={line}>{line}</li>)}</ul>
+            <p className="text-[11px] text-ink-3">Expected local folder: {report.data_directory}</p>
+          </div>
+        </Callout>
+      )}
+      {report?.status === 'invalid' && <Callout kind="error" title="PHM dataset validation failed">{report.error}</Callout>}
+      {report?.status === 'ready' && report.rolling_origin && report.signal_features && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Stat label="Optical labels loaded" value={report.labels_loaded ?? 0} />
+            <Stat label="Training specimens" value={report.specimens?.length ?? 0} />
+            <Stat label="Rolling-origin scored points" value={report.rolling_origin.summary.scored_points} />
+            <Stat label="Signal files detected" value={report.signal_features.files_found} />
+          </div>
+          <div className="text-[11.5px] text-ink-2 mt-2">{report.provenance_note}</div>
+          <div className="text-[11.5px] text-ink-3 mt-1">{report.method_note}</div>
+          <div className="overflow-x-auto mt-3">
+            <table className="table text-[12px]">
+              <thead><tr><th>Specimen</th><th>Labelled points</th><th>Scored points</th><th>Last-value MAE (mm)</th><th>Linear-trend MAE (mm)</th><th>Last-value RMSE (mm)</th><th>Linear-trend RMSE (mm)</th></tr></thead>
+              <tbody>{report.rolling_origin.by_specimen.map((row) => (
+                <tr key={row.specimen}>
+                  <td className="num">{row.specimen}</td><td className="num">{row.labelled_points}</td><td className="num">{row.scored_points}</td>
+                  <td className="num">{metric(row.last_value_mae_mm)}</td><td className="num">{metric(row.linear_trend_mae_mm)}</td>
+                  <td className="num">{metric(row.last_value_rmse_mm)}</td><td className="num">{metric(row.linear_trend_rmse_mm)}</td>
+                </tr>
+              ))}</tbody>
+              <tfoot><tr className="font-medium"><td>Overall</td><td>—</td><td className="num">{report.rolling_origin.summary.scored_points}</td>
+                <td className="num">{metric(report.rolling_origin.summary.last_value_mae_mm)}</td><td className="num">{metric(report.rolling_origin.summary.linear_trend_mae_mm)}</td>
+                <td className="num">{metric(report.rolling_origin.summary.last_value_rmse_mm)}</td><td className="num">{metric(report.rolling_origin.summary.linear_trend_rmse_mm)}</td></tr></tfoot>
+            </table>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3 mt-3">
+            <div className="border border-line rounded p-3">
+              <div className="text-[12px] font-medium mb-2">Lamb-wave signal coverage</div>
+              <div className="text-[12px] text-ink-2">Parsed files: {report.signal_features.files_found - report.signal_features.files_unparsed} / {report.signal_features.files_found}</div>
+              <div className="text-[12px] text-ink-2">Cycles with features: {report.signal_features.cycles_with_signal_features}</div>
+              <div className="text-[12px] text-ink-2">Labelled cycles matched to signals: {report.signal_features.labelled_cycles_with_signals}</div>
+            </div>
+            <div className="border border-line rounded p-3">
+              <div className="text-[12px] font-medium mb-2">Signal feature correlation with measured crack length</div>
+              {Object.entries(report.signal_features.feature_correlations_with_crack_length).map(([key, value]) => <div key={key} className="flex justify-between gap-2 text-[12px] text-ink-2"><span>{key}</span><span className="num">{value == null ? 'n/a' : fmt.num(value, 3)}</span></div>)}
+              <div className="text-[10.5px] text-ink-3 mt-1">{report.signal_features.note}</div>
+            </div>
+          </div>
+          {report.warnings?.length ? <Callout kind="warning" title="Dataset parsing warnings"><ul className="list-disc pl-5">{report.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></Callout> : null}
+          <div className="text-[11px] text-ink-3 mt-2">T7 and T8 are intentionally excluded from scored metrics because the challenge provides no optical crack-length ground truth for those validation specimens.</div>
+        </>
+      )}
+    </Card>
   )
 }
 

@@ -1,6 +1,6 @@
 import type {
   Aircraft, Catalogue, CompareResult, ComponentDetail, ComponentHistory, ComponentSummary, ConditionResolution, DemoResult, Experiment, Flight, ImportResult, Inspection, Maintenance, Mission, MissionPresets, ModelInfo,
-  LiveSnapshot, ModelUpdate, Observation, Overview, PlaybackBundle, Prediction, PredictionSummary, Reconciliation, Scenario, Settings, SimulationRun, SimulationSummary, TemplateInfo, TimelineEvent, TwinStatus, ValidationReport,
+  LiveSnapshot, ModelUpdate, Observation, Overview, PlaybackBundle, Prediction, PredictionSummary, Reconciliation, Scenario, Settings, SimulationRun, SimulationSummary, TemplateInfo, TimelineEvent, TwinStatus, ValidationReport, PHM2019Report,
 } from './types'
 
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
@@ -119,6 +119,7 @@ export const api = {
 
   modelHistory: (componentId?: string) => get<{ timeline: TimelineEvent[]; updates: ModelUpdate[]; reconciliations: Pick<Reconciliation, 'id' | 'component_id' | 'flight_id' | 'model_version' | 'gate' | 'summary' | 'created_at'>[] }>(`/model-history${componentId ? `?component_id=${componentId}` : ''}`),
   validation: (force = false, componentId = 'ENG-MOUNT-001') => get<ValidationReport>(`/validation?force=${force}&component_id=${componentId}`),
+  phm2019: () => get<PHM2019Report>('/validation/external/phm2019'),
 
   demos: () => get<{ available: { id: string; title: string; component_id: string }[]; results: DemoResult[] }>('/demo'),
   runDemo: (demoId: string, reset = true) => post<DemoResult>(`/demo/run?demo_id=${demoId}&reset=${reset}`),

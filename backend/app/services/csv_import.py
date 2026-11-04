@@ -35,9 +35,9 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "operational_records": {
         "description": "Per-flight operational summary used to document a component's operating history.",
-        "columns": ["component_id", "flight_date", "duration_min", "landing_cycles", "load_factor", "max_temperature_c", "environment", "notes"],
+        "columns": ["component_id", "flight_id", "flight_date", "duration_min", "landing_cycles", "load_factor", "max_temperature_c", "environment", "notes"],
         "required": ["component_id", "flight_date", "duration_min"],
-        "example": [["ENG-MOUNT-001", "2026-10-02", 118, 1, 1.0, 72, "benign", "revenue flight"]],
+        "example": [["ENG-MOUNT-001", "", "2026-10-02", 118, 1, 1.0, 72, "benign", "revenue flight"]],
         "units": {"duration_min": "min", "max_temperature_c": "°C"},
     },
     "flight_schedule": {
@@ -77,9 +77,9 @@ TEMPLATES: dict[str, dict[str, Any]] = {
     },
     "load_history": {
         "description": "Stress time history (MPa) for rainflow cycle counting. One row per sample.",
-        "columns": ["component_id", "t_s", "stress_mpa"],
+        "columns": ["component_id", "flight_id", "t_s", "stress_mpa"],
         "required": ["component_id", "t_s", "stress_mpa"],
-        "example": [["ENG-MOUNT-001", 0, 40], ["ENG-MOUNT-001", 1, 180], ["ENG-MOUNT-001", 2, 60], ["ENG-MOUNT-001", 3, 220], ["ENG-MOUNT-001", 4, 30]],
+        "example": [["ENG-MOUNT-001", "", 0, 40], ["ENG-MOUNT-001", "", 1, 180], ["ENG-MOUNT-001", "", 2, 60], ["ENG-MOUNT-001", "", 3, 220], ["ENG-MOUNT-001", "", 4, 30]],
         "units": {"stress_mpa": "MPa", "t_s": "s"},
     },
     "predicted_outputs": {
@@ -281,55 +281,143 @@ def validate_and_import(db: Database, dataset: str, content: bytes, filename: st
 
     if dataset == "load_history":
         _numeric_check(df, ["t_s", "stress_mpa"], problems)
+        if len(set(df["component_id"].dropna().astype(str))) != 1:
+            problems.append("A load_history upload must contain exactly one component_id; split mixed-component files before import.")
+        if "flight_id" in df.columns:
+            flight_ids = {str(v).strip() for v in df["flight_id"].dropna() if str(v).strip()}
+            if len(flight_ids) > 1:
+                problems.append("A load_history upload can be linked to at most one flight_id.")
+            known = {f["id"]: f for f in db.list("flights")}
+            bad = sorted(flight_ids - set(known))
+            if bad:
+                problems.append(f"Unknown flight identifier(s): {', '.join(bad)}.")
+            if flight_ids and not bad:
+                flight = known[next(iter(flight_ids))]
+                component = db.get("components", str(df["component_id"].iloc[0]))
+                if flight.get("status") != "completed":
+                    problems.append(f"Flight {flight['id']} is still scheduled; load history can only be linked to a completed flight.")
+                if component and flight.get("aircraft_id") != component.get("aircraft_id"):
+                    problems.append(f"Flight {flight['id']} belongs to a different aircraft from component {component['id']}.")
         if not problems:
             t = pd.to_numeric(df["t_s"])
+            stress = pd.to_numeric(df["stress_mpa"])
             if not t.is_monotonic_increasing:
                 problems.append("t_s must be increasing.")
+            if t.duplicated().any():
+                problems.append("t_s must not contain duplicate sample times.")
             if len(df) < 3:
                 problems.append("At least 3 samples are needed for rainflow counting.")
+            if not stress.notna().all():
+                problems.append("stress_mpa must contain a numeric value for every sample.")
         result["problems"] = problems
         if problems:
             return result
-        bins = rainflow_bins(pd.to_numeric(df["stress_mpa"]).tolist())
-        summary = {"n_samples": int(len(df)), "n_cycles": float(sum(b.cycles for b in bins)), "max_range_mpa": float(max(b.stress_range for b in bins)) if bins else 0.0,
-                   "bins": [{"stress_range_mpa": b.stress_range, "cycles": b.cycles, "mean_stress_mpa": b.mean_stress} for b in bins]}
+        bins = rainflow_bins(stress.tolist())
+        summary = {
+            "n_samples": int(len(df)),
+            "n_cycles": float(sum(b.cycles for b in bins)),
+            "max_range_mpa": float(max(b.stress_range for b in bins)) if bins else 0.0,
+            "bins": [{"stress_range_mpa": b.stress_range, "cycles": b.cycles, "mean_stress_mpa": b.mean_stress} for b in bins],
+        }
         imported = []
         if commit:
-            rec = db.insert("imports", {"dataset": dataset, "component_id": str(df["component_id"].iloc[0]), "filename": filename, "rainflow": summary}, "imp")
+            component_id = str(df["component_id"].iloc[0])
+            flight_id = next(iter(flight_ids), None) if "flight_id" in df.columns else None
+            flight = db.get("flights", flight_id) if flight_id else None
+            samples = [{"t_s": float(ti), "stress_mpa": float(si)} for ti, si in zip(t.tolist(), stress.tolist())]
+            rec = db.insert("load_histories", {
+                "component_id": component_id,
+                "aircraft_id": (db.get("components", component_id) or {}).get("aircraft_id"),
+                "flight_id": flight_id,
+                "event_time": flight.get("event_time") if flight else None,
+                "filename": filename,
+                "source": filename,
+                "provenance": "uploaded",
+                "label": "UPLOADED STRESS HISTORY — PRESERVED FOR ENGINEERING REVIEW",
+                "n_samples": len(samples),
+                "t_s": [s["t_s"] for s in samples],
+                "stress_mpa": [s["stress_mpa"] for s in samples],
+                "samples": samples,
+                "rainflow": summary,
+                "automatic_twin_replay": False,
+                "replay_note": "A stress trace is preserved with its units and chronology; it is not automatically applied to a component model without an approved load-path mapping.",
+            }, "load")
             imported.append(rec["id"])
-            db.log_activity("import", f"Load history {filename} rainflow-counted: {summary['n_cycles']:.1f} cycles.", {"ids": imported})
+            db.insert("imports", {"dataset": dataset, "component_id": component_id, "filename": filename, "load_history_id": rec["id"], "rainflow": summary, "raw_samples_preserved": True}, "imp")
+            db.log_activity("import", f"Load history {filename} preserved ({len(samples)} samples; {summary['n_cycles']:.1f} rainflow cycles).", {"ids": imported})
         result.update(ok=True, imported=imported, rainflow=summary)
         return result
 
     if dataset == "operational_records":
         _numeric_check(df, ["duration_min", "landing_cycles", "load_factor", "max_temperature_c"], problems)
-        if not problems:
-            try:
-                pd.to_datetime(df["flight_date"], errors="raise")
-            except Exception:  # noqa: BLE001
-                problems.append("flight_date must be an ISO date (YYYY-MM-DD).")
-            if (pd.to_numeric(df["duration_min"], errors="coerce") <= 0).any():
-                problems.append("duration_min must be positive.")
-            if "environment" in df.columns:
-                be = sorted(set(df["environment"].dropna().astype(str)) - {"benign", "humid", "marine", "desert"})
-                if be:
-                    problems.append(f"Unknown environment value(s): {', '.join(be)}. Allowed: benign, humid, marine, desert.")
-            dup = df.duplicated(subset=["component_id", "flight_date", "duration_min"])
-            if dup.any():
-                problems.append(f"Duplicate operational record row(s) at {(df.index[dup] + 2).tolist()}.")
+        try:
+            pd.to_datetime(df["flight_date"], errors="raise")
+        except Exception:  # noqa: BLE001
+            problems.append("flight_date must be an ISO date (YYYY-MM-DD).")
+        if (pd.to_numeric(df["duration_min"], errors="coerce") <= 0).any():
+            problems.append("duration_min must be positive.")
+        if "landing_cycles" in df.columns and (pd.to_numeric(df["landing_cycles"], errors="coerce").dropna() < 0).any():
+            problems.append("landing_cycles cannot be negative.")
+        if "load_factor" in df.columns and (pd.to_numeric(df["load_factor"], errors="coerce").dropna() <= 0).any():
+            problems.append("load_factor must be positive when supplied.")
+        if "environment" in df.columns:
+            be = sorted(set(df["environment"].dropna().astype(str)) - {"benign", "humid", "marine", "desert"})
+            if be:
+                problems.append(f"Unknown environment value(s): {', '.join(be)}. Allowed: benign, humid, marine, desert.")
+        if "flight_id" in df.columns:
+            known = {f["id"]: f for f in db.list("flights")}
+            for idx, row in df.iterrows():
+                value = row.get("flight_id")
+                if pd.isna(value) or not str(value).strip():
+                    continue
+                flight_id = str(value).strip()
+                flight = known.get(flight_id)
+                if flight is None:
+                    problems.append(f"Row {idx+2}: unknown flight identifier '{flight_id}'.")
+                    continue
+                component = db.get("components", str(row["component_id"]))
+                if flight.get("status") != "completed":
+                    problems.append(f"Row {idx+2}: flight {flight_id} is still scheduled; operational actuals require a completed flight.")
+                if component and flight.get("aircraft_id") != component.get("aircraft_id"):
+                    problems.append(f"Row {idx+2}: flight {flight_id} belongs to a different aircraft from component {component['id']}.")
+        dup_cols = ["component_id", "flight_date", "flight_id"] if "flight_id" in df.columns else ["component_id", "flight_date", "duration_min"]
+        dup = df.duplicated(subset=dup_cols)
+        if dup.any():
+            problems.append(f"Duplicate operational record row(s) at {(df.index[dup] + 2).tolist()}.")
         result["problems"] = problems
         if problems:
             return result
         imported = []
         if commit:
-            rec = db.insert("imports", {"dataset": dataset, "filename": filename, "records": df.where(pd.notna(df), None).to_dict(orient="records")}, "imp")
-            imported.append(rec["id"])
-            for cid, g in df.groupby("component_id"):
-                comp = db.get("components", str(cid))
-                if comp:
-                    comp["operational_summary"] = f"{comp.get('operational_summary', '')} + {len(g)} uploaded operational record(s) from {filename}."
-                    db.upsert("components", comp)
-            db.log_activity("import", f"Imported {len(df)} operational record(s) from {filename}.", {"ids": imported})
+            numeric_fields = ("duration_min", "landing_cycles", "load_factor", "max_temperature_c")
+            for _, row in df.iterrows():
+                component_id = str(row["component_id"])
+                component = db.get("components", component_id) or {}
+                flight_id_value = row.get("flight_id") if "flight_id" in df.columns else None
+                flight_id = None if pd.isna(flight_id_value) or not str(flight_id_value).strip() else str(flight_id_value).strip()
+                date = pd.to_datetime(row["flight_date"]).date().isoformat()
+                conditions = {
+                    key: (None if key not in df.columns or pd.isna(row.get(key)) else float(row[key]))
+                    for key in numeric_fields
+                }
+                rec = db.insert("operational_records", {
+                    "component_id": component_id,
+                    "aircraft_id": component.get("aircraft_id"),
+                    "flight_id": flight_id,
+                    "operational_date": date,
+                    "event_time": f"{date}T12:00:00+00:00",
+                    "conditions": conditions,
+                    "environment": None if "environment" not in df.columns or pd.isna(row.get("environment")) else str(row["environment"]),
+                    "notes": None if "notes" not in df.columns or pd.isna(row.get("notes")) else str(row["notes"]),
+                    "provenance": "uploaded",
+                    "source": filename,
+                    "label": "UPLOADED OPERATIONAL SUMMARY — NOT SENSOR OBSERVATION",
+                    "automatic_twin_replay": False,
+                    "replay_note": "This summary is stored as operational evidence. It does not create a synthetic flight or sensor observation; link/import the corresponding completed flight and observations separately.",
+                }, "opr")
+                imported.append(rec["id"])
+            db.insert("imports", {"dataset": dataset, "filename": filename, "operational_record_ids": imported, "rows": len(imported), "provenance": "uploaded"}, "imp")
+            db.log_activity("import", f"Imported {len(imported)} traceable operational summary record(s) from {filename}.", {"ids": imported})
         result.update(ok=True, imported=imported)
         return result
 

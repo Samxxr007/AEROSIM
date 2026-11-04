@@ -18,7 +18,7 @@ from ..engine.registry import DEFAULT_RESPONSE_PARAMS, MODEL_REGISTRY, list_mode
 from ..engine.response import CHANNEL_UNITS, DEFAULT_PHASE_FRACTIONS, ENVIRONMENT_FACTORS, MISSION_PRESETS, PHASES, PHASE_TABLES
 from ..schemas import (ApplyUpdateRequest, CompareRequest, CompleteFlightRequest, ComponentIn, InspectionIn, MaintenanceIn, ManualObservationRequest,
                        PredictRequest, ReconcileRequest, ScenarioIn, ScheduledFlightIn, SettingsIn, SimulationRequest)
-from ..services import csv_import, demo, ground_truth, history, inspection, model_history, playback, reconciliation, seed, simulation, twin, validation
+from ..services import csv_import, demo, ground_truth, history, inspection, model_history, phm2019, playback, reconciliation, seed, simulation, twin, validation
 from ..services.components import component_assessment
 
 router = APIRouter()
@@ -181,6 +181,8 @@ def component_history(component_id: str):
         "component_id": component_id, "aircraft_id": c.get("aircraft_id"), "baseline_state": c.get("baseline_state"), "baseline_provenance": c.get("baseline_provenance"), "baseline_date": c.get("baseline_date"),
         "installation_date": c.get("installation_date"), "part_number": c.get("part_number"), "serial_number": c.get("serial_number"),
         "observations": obs_rows,
+        "operational_records": sorted(db.list("operational_records", {"component_id": component_id}), key=lambda r: r.get("event_time") or r.get("operational_date") or ""),
+        "load_histories": sorted(db.list("load_histories", {"component_id": component_id}), key=lambda r: r.get("event_time") or r.get("created_at") or ""),
         "inspections": sorted(db.list("inspections", {"component_id": component_id}), key=lambda i: i.get("event_time") or i["inspection_date"]),
         "maintenance": sorted(db.list("maintenance", {"component_id": component_id}), key=lambda m: m.get("event_time") or m["maintenance_date"]),
         "flight_log": c.get("flight_log", []),
@@ -507,6 +509,11 @@ async def validation_report(force: bool = False, component_id: str = "ENG-MOUNT-
 @router.get("/validation/experiment/{component_id}")
 async def validation_experiment(component_id: str):
     return await asyncio.to_thread(_wrap, validation.chronological_experiment, _db(), component_id)
+
+@router.get("/validation/external/phm2019")
+def phm2019_external_validation():
+    """Evaluate locally supplied PHM 2019 training labels without mixing them into aircraft records."""
+    return sanitize(phm2019.build_report())
 
 
 # ----------------------------------------------------------------- what-if (secondary)

@@ -32,6 +32,8 @@ COLLECTIONS = [
     "settings",
     "activity",
     "imports",
+    "operational_records",
+    "load_histories",
 ]
 
 

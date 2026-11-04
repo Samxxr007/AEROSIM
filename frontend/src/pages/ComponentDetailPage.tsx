@@ -180,6 +180,28 @@ export default function ComponentDetailPage() {
                 )}
               </Card>
               <div className="grid xl:grid-cols-2 gap-4">
+                <Card title="Uploaded operational summary records" subtitle="Traceable per-component operating history; these summaries are not sensor observations and are not silently replayed as flights." dense>
+                  {hist.data.operational_records.length === 0 ? <div className="text-[12px] text-ink-3">No operational summaries uploaded.</div> : (
+                    <div className="overflow-x-auto"><table className="table text-[12px]"><thead><tr><th>Date</th><th>Flight ID</th><th>Duration</th><th>Landing cycles</th><th>Load factor</th><th>Max temp.</th><th>Environment</th><th>Source</th></tr></thead>
+                      <tbody>{hist.data.operational_records.map((r) => <tr key={r.id}><td className="num">{r.operational_date}</td><td className="num">{r.flight_id ?? 'unlinked'}</td><td className="num">{r.conditions.duration_min ?? '—'} min</td><td className="num">{r.conditions.landing_cycles ?? '—'}</td><td className="num">{r.conditions.load_factor ?? '—'}</td><td className="num">{r.conditions.max_temperature_c ?? '—'} °C</td><td>{r.environment ?? '—'}</td><td><Tag kind={r.provenance} /> <span className="text-ink-3">{r.source}</span></td></tr>)}</tbody></table></div>
+                  )}
+                  <div className="text-[10.5px] text-ink-3 mt-2">A linked flight ID is a traceability reference only. Stage A calibration still requires actual channel observations attached to the completed flight.</div>
+                </Card>
+                <Card title="Uploaded stress time histories" subtitle="Original ordered MPa samples and rainflow summaries are retained for engineering review." dense>
+                  {hist.data.load_histories.length === 0 ? <div className="text-[12px] text-ink-3">No load-history traces uploaded.</div> : (
+                    <div className="space-y-3">
+                      {hist.data.load_histories.map((r) => (
+                        <div key={r.id} className="border border-line rounded p-2">
+                          <div className="flex flex-wrap justify-between gap-2 text-[11.5px] mb-1"><span className="font-medium">{r.filename} · {r.flight_id ?? 'not linked to a flight'}</span><span className="num">{r.n_samples} samples · {fmt.num(r.rainflow.n_cycles, 1)} rainflow cycles · max range {fmt.num(r.rainflow.max_range_mpa, 1)} MPa</span></div>
+                          <SeriesChart data={r.samples.map((s) => ({ time_s: s.t_s, stress_mpa: s.stress_mpa }))} xKey="time_s" series={[{ key: 'stress_mpa', name: 'stress', color: '#38bdf8' }]} title="Preserved stress trace" unitNote="MPa" height={145} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="text-[10.5px] text-ink-3 mt-2">The trace is preserved, but it is not automatically applied to the component's damage state: an approved mapping from this stress channel to the component's geometry/load path is required.</div>
+                </Card>
+              </div>
+              <div className="grid xl:grid-cols-2 gap-4">
                 <Card title="Inspection records" dense>
                   {hist.data.inspections.length === 0 ? <div className="text-[12px] text-ink-3">None.</div> : (
                     <table className="table text-[12px]"><thead><tr><th>Date</th><th>Method</th><th>Finding</th><th>Measured</th><th>Confidence</th><th>Provenance</th><th>Twin decision</th></tr></thead>

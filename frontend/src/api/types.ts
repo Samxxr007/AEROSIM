@@ -204,6 +204,16 @@ export interface ComponentHistory {
   part_number: string
   serial_number: string
   observations: { id: string; flight_id: string; flight_date?: string; route?: string; event_time: string; provenance: string; label: string; anomaly: string; measured_channels: string[]; summary: Record<string, { mean: number; max: number; min: number; missing_fraction: number }>; actual_conditions: ActualConditions | null }[]
+  operational_records: {
+    id: string; operational_date: string; event_time: string; flight_id?: string | null; conditions: Record<string, number | null>;
+    environment?: string | null; notes?: string | null; provenance: string; source: string; label: string; automatic_twin_replay: boolean; replay_note: string
+  }[]
+  load_histories: {
+    id: string; event_time?: string | null; flight_id?: string | null; filename: string; provenance: string; label: string;
+    n_samples: number; samples: { t_s: number; stress_mpa: number }[];
+    rainflow: { n_samples: number; n_cycles: number; max_range_mpa: number; bins: { stress_range_mpa: number; cycles: number; mean_stress_mpa: number }[] };
+    automatic_twin_replay: boolean; replay_note: string
+  }[]
   inspections: Inspection[]
   maintenance: Maintenance[]
   flight_log: { flight_id: string; sequence: number; prediction_id: string; as_flown_increments: Record<string, number>; state_after: Record<string, number>; ts: string }[]
@@ -610,6 +620,47 @@ export interface DemoResult {
   key_metric: string
   key_unit: string
   label: string
+}
+
+export interface PHM2019Report {
+  status: 'ready' | 'not_ready' | 'invalid'
+  dataset: string
+  data_directory: string
+  source_url: string
+  challenge_url: string
+  download_url?: string
+  error?: string
+  instructions?: string[]
+  warnings?: string[]
+  labels_source?: string
+  labels_loaded?: number
+  specimens?: string[]
+  labelled_points_by_specimen?: { specimen: string; points: number }[]
+  signal_features?: {
+    files_found: number
+    files_unparsed: number
+    cycles_with_signal_features: number
+    labelled_cycles_with_signals: number
+    feature_correlations_with_crack_length: Record<string, number | null>
+    note: string
+  }
+  rolling_origin?: {
+    summary: {
+      scored_points: number
+      last_value_mae_mm: number | null
+      linear_trend_mae_mm: number | null
+      last_value_rmse_mm: number | null
+      linear_trend_rmse_mm: number | null
+    }
+    by_specimen: {
+      specimen: string; labelled_points: number; scored_points: number
+      last_value_mae_mm: number; linear_trend_mae_mm: number
+      last_value_rmse_mm: number; linear_trend_rmse_mm: number
+    }[]
+    predictions: { specimen: string; cycle: number; actual_mm: number; last_value_mm: number; linear_trend_mm: number }[]
+  }
+  method_note?: string
+  provenance_note?: string
 }
 
 export interface ValidationReport {
