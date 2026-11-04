@@ -1,13 +1,14 @@
 import { RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api/client'
+import type { Experiment } from '../api/types'
 import { SeriesChart } from '../components/charts'
 import { Callout, Card, ErrorBox, Field, PageHeader, Spinner, Stat } from '../components/ui'
 import { useAppStore } from '../store/useAppStore'
 import { fmt, RESPONSE_LABELS, stateLabel } from '../utils/format'
 import { useApi } from '../utils/useApi'
 
-const VARIANT_COLORS: Record<string, string> = { A: '#7b8794', B: '#b7791f', C: '#1f6f8b', C_sparse: '#5b4b8a' }
+const VARIANT_COLORS: Record<string, string> = { A: '#6f8196', B: '#f5b041', C: '#38bdf8', C_sparse: '#a78bfa' }
 
 export default function ValidationPage() {
   const [force, setForce] = useState(false)
@@ -41,6 +42,7 @@ export default function ValidationPage() {
           </Card>
           {exp && (
             <>
+              <Scoreboard exp={exp} />
               <Card title={`Chronological model comparison — ${exp.component_id} (${exp.n_flights} completed flights)`} subtitle={exp.leakage_control}>
                 <table className="table">
                   <thead><tr><th>Variant</th><th>Mean load forecast error</th><th>1st half → 2nd half</th><th>Mean response error (as-flown)</th><th>Mean |{stateLabel(exp.key_metric).label}| error ({unit})</th><th>Final |error| ({unit})</th><th>RUL twin vs reference (flights)</th><th>Gate decisions (acc / red / more / rej)</th><th>Final model</th></tr></thead>
@@ -66,7 +68,7 @@ export default function ValidationPage() {
                   <span className="text-ink-3">{exp.conclusions.note}</span>
                 </div>
                 <div className="grid xl:grid-cols-2 gap-3 mt-3">
-                  <SeriesChart data={exp.variants.A.flights.map((f, i) => ({ flight: f.flight_id.replace('AC001-', ''), reference: (f.truth_state ?? 0) * scale, A: (exp.variants.A.flights[i].twin_state ?? 0) * scale, B: (exp.variants.B.flights[i]?.twin_state ?? 0) * scale, C: (exp.variants.C.flights[i]?.twin_state ?? 0) * scale, C_sparse: (exp.variants.C_sparse.flights[i]?.twin_state ?? 0) * scale }))} xKey="flight" series={[{ key: 'reference', name: 'Hidden reference', color: '#2f7d4f', dashed: true }, { key: 'A', name: 'A static', color: VARIANT_COLORS.A }, { key: 'B', name: 'B calibrated', color: VARIANT_COLORS.B }, { key: 'C', name: 'C two-stage', color: VARIANT_COLORS.C }, { key: 'C_sparse', name: 'C sparse inspections', color: VARIANT_COLORS.C_sparse }]} title={`${stateLabel(exp.key_metric).label} after each flight (${unit})`} unitNote={unit} />
+                  <SeriesChart data={exp.variants.A.flights.map((f, i) => ({ flight: f.flight_id.replace('AC001-', ''), reference: (f.truth_state ?? 0) * scale, A: (exp.variants.A.flights[i].twin_state ?? 0) * scale, B: (exp.variants.B.flights[i]?.twin_state ?? 0) * scale, C: (exp.variants.C.flights[i]?.twin_state ?? 0) * scale, C_sparse: (exp.variants.C_sparse.flights[i]?.twin_state ?? 0) * scale }))} xKey="flight" series={[{ key: 'reference', name: 'Hidden reference', color: '#3ddc97', dashed: true }, { key: 'A', name: 'A static', color: VARIANT_COLORS.A }, { key: 'B', name: 'B calibrated', color: VARIANT_COLORS.B }, { key: 'C', name: 'C two-stage', color: VARIANT_COLORS.C }, { key: 'C_sparse', name: 'C sparse inspections', color: VARIANT_COLORS.C_sparse }]} title={`${stateLabel(exp.key_metric).label} after each flight (${unit})`} unitNote={unit} />
                   <SeriesChart data={exp.variants.A.flights.map((f, i) => ({ flight: f.flight_id.replace('AC001-', ''), A: (exp.variants.A.flights[i].forecast_rel_error ?? 0) * 100, B: (exp.variants.B.flights[i]?.forecast_rel_error ?? 0) * 100, C: (exp.variants.C.flights[i]?.forecast_rel_error ?? 0) * 100 }))} xKey="flight" series={[{ key: 'A', name: 'A static', color: VARIANT_COLORS.A }, { key: 'B', name: 'B calibrated', color: VARIANT_COLORS.B }, { key: 'C', name: 'C two-stage', color: VARIANT_COLORS.C }]} title="Load forecast error per flight (%)" unitNote="pre-flight prediction vs actual" yFormatter={(v) => `${v.toFixed(1)} %`} />
                 </div>
                 <div className="text-[11.5px] text-ink-3 mt-2">A and B never learn a damage state that only an inspection can reveal (e.g. a crack): sensor data cannot establish structural damage, which is why their state error stays at the hidden crack size. C-sparse shows the effect of fewer inspections. The forecast error includes deviation between planned and actual flight conditions; the response error isolates the model.</div>
@@ -92,6 +94,33 @@ export default function ValidationPage() {
           <Callout kind="warning">Monte Carlo intervals shown elsewhere are sample percentiles under stated input distributions; no coverage calibration has been performed. Test results verify mathematical implementation and workflow logic on synthetic ground truth, not real-world predictive accuracy.</Callout>
         </>
       )}
+    </div>
+  )
+}
+
+function Scoreboard({ exp }: { exp: Experiment }) {
+  const sc = stateLabel(exp.key_metric).scale
+  const unit = stateLabel(exp.key_metric).unit
+  const A = exp.summary.A, B = exp.summary.B, C = exp.summary.C
+  const ref = C?.truth_rul_flights
+  const cells = [
+    { label: 'load forecast error', sub: 'A static → B calibrated', a: fmt.pct(A?.mean_forecast_rel_error), c: fmt.pct(B?.mean_forecast_rel_error), good: (B?.mean_forecast_rel_error ?? 1) < (A?.mean_forecast_rel_error ?? 0) },
+    { label: `final |${stateLabel(exp.key_metric).label}| error`, sub: 'A static → C two-stage', a: A?.final_abs_state_error != null ? `${fmt.num(A.final_abs_state_error * sc, 3)} ${unit}` : '—', c: C?.final_abs_state_error != null ? `${fmt.num(C.final_abs_state_error * sc, 3)} ${unit}` : '—', good: (C?.final_abs_state_error ?? 1) < (A?.final_abs_state_error ?? 0) },
+    { label: 'remaining life vs hidden reference', sub: `reference ${ref != null ? fmt.int(ref) : '—'} flights`, a: A?.twin_rul_flights != null ? fmt.int(A.twin_rul_flights) : '—', c: C?.twin_rul_flights != null ? fmt.int(C.twin_rul_flights) : '—', good: ref != null && C?.twin_rul_flights != null && A?.twin_rul_flights != null && Math.abs(C.twin_rul_flights - ref) < Math.abs(A.twin_rul_flights - ref) },
+  ]
+  return (
+    <div className="grid md:grid-cols-3 gap-3">
+      {cells.map((x) => (
+        <div key={x.label} className="card px-4 py-3">
+          <div className="label">{x.label}</div>
+          <div className="flex items-end gap-3 mt-1">
+            <div><div className="text-[10px] text-ink-3">static model</div><div className="num text-[20px] text-ink-2 line-through decoration-red/60">{x.a}</div></div>
+            <div className="text-ink-3 pb-1">→</div>
+            <div><div className="text-[10px] text-ink-3">self-evolving twin</div><div className={`num text-[26px] leading-none ${x.good ? 'text-green' : 'text-amber'}`}>{x.c}</div></div>
+          </div>
+          <div className="text-[10.5px] text-ink-3 mt-1">{x.sub} · measured chronologically against the hidden reference</div>
+        </div>
+      ))}
     </div>
   )
 }

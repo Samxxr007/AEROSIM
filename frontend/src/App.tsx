@@ -5,6 +5,7 @@ import ComponentsPage from './pages/ComponentsPage'
 import FlightsPage from './pages/FlightsPage'
 import PredictionsPage from './pages/PredictionsPage'
 import InspectionsPage from './pages/InspectionsPage'
+import LiveTwinPage from './pages/LiveTwinPage'
 import MethodologyPage from './pages/MethodologyPage'
 import MissionsPage from './pages/MissionsPage'
 import ModelHistoryPage from './pages/ModelHistoryPage'
@@ -20,6 +21,8 @@ export function AppRoutes() {
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/overview" replace />} />
         <Route path="/overview" element={<OverviewPage />} />
+        <Route path="/live" element={<LiveTwinPage />} />
+        <Route path="/live/:id" element={<LiveTwinPage />} />
         <Route path="/components" element={<ComponentsPage />} />
         <Route path="/components/:id" element={<ComponentDetailPage />} />
         <Route path="/flights" element={<FlightsPage />} />

@@ -1,9 +1,11 @@
 import { Play } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { ModelType, SimulationRun } from '../api/types'
 import { DamageProgressionChart, IncrementChart, SensitivityChart, StressSpectrumChart } from '../components/charts'
+import { CAMERA_FOR, ComponentModel, damageFractions, FALLBACK_LIMITS, healthColor, Scene, type LiveSignals } from '../components/three'
+import { PROFILE_LABELS } from '../utils/format'
 import { MissionEditor } from '../components/MissionEditor'
 import { Callout, Card, ErrorBox, Field, KV, PageHeader, Spinner, Stat, StatusPill, Tag } from '../components/ui'
 import { useAppStore } from '../store/useAppStore'
@@ -108,6 +110,7 @@ export default function SimulationPage() {
             <Stat label="Threshold-crossing fraction" value={run.uncertainty ? fmt.pct(run.uncertainty.threshold_crossing_fraction, 1) : '—'} hint={run.uncertainty ? `${run.uncertainty.n_samples} MC samples · model-derived` : 'uncertainty disabled'} tone={run.uncertainty && run.uncertainty.threshold_crossing_fraction > 0.05 ? 'warn' : 'default'} />
             <Stat label="Minimum remaining margin" value={fmt.pct(Math.min(...run.flights.map((f) => f.remaining_margin ?? 1)), 1)} hint="worst mechanism at last flight" />
           </div>
+          <WhatIfReplay run={run} stateKey={key} />
           <div className="grid xl:grid-cols-2 gap-4">
             <Card dense><DamageProgressionChart flights={run.flights} stateKey={key} uncertainty={run.uncertainty} initial={run.initial_state[key]} /></Card>
             <Card dense>{stateKeys.filter((k) => k !== key)[0] ? <DamageProgressionChart flights={run.flights} stateKey={stateKeys.filter((k) => k !== key)[0]} uncertainty={run.uncertainty} initial={run.initial_state[stateKeys.filter((k) => k !== key)[0]]} /> : <IncrementChart flights={run.flights} incKey={key} />}</Card>
@@ -173,6 +176,71 @@ export default function SimulationPage() {
           </Card>
         </>
       )}
+    </div>
+  )
+}
+
+/** Scrub through the hypothetical sequence: the 3D part shows the state after flight n under that mission's loading. */
+function WhatIfReplay({ run, stateKey }: { run: SimulationRun; stateKey: string }) {
+  const [idx, setIdx] = useState(run.flights.length - 1)
+  const [auto, setAuto] = useState(false)
+  useEffect(() => setIdx(run.flights.length - 1), [run.id, run.flights.length])
+  useEffect(() => {
+    if (!auto) return
+    const t = setInterval(() => setIdx((i) => (i + 1 >= run.flights.length ? 0 : i + 1)), 700)
+    return () => clearInterval(t)
+  }, [auto, run.flights.length])
+  const f = run.flights[idx]
+  const m = run.missions[f.mission_index]
+  const limits = useMemo(() => {
+    const l: Record<string, number | null> = { ...FALLBACK_LIMITS[run.model_type] }
+    const ac = run.flights.find((x) => x.outputs.a_critical_m != null)?.outputs.a_critical_m
+    if (ac) l.crack_length_m = ac
+    return l
+  }, [run])
+  const damage = damageFractions(f.state_after, limits)
+  const signals: LiveSignals = useMemo(() => {
+    const mm = m.mission
+    const load = Math.min(1.2, 0.55 * (mm.load_factor ?? 1) * (mm.operating_intensity ?? 1))
+    return { load, temperature: Math.min(1, 0.35 + ((mm.temperature_c ?? 15) - 15) / 60 + 0.3 * ((mm.operating_intensity ?? 1) - 1)), vibration: Math.min(1, 0.4 * (mm.vibration_level ?? 1)), pressure: Math.min(1, 0.6 * (mm.pressure_factor ?? 1)), phase: 'cruise', playing: auto }
+  }, [m, auto])
+  const cam = CAMERA_FOR[run.model_type]
+  const frac = damage.fractions[stateKey]
+  return (
+    <div className="card overflow-hidden">
+      <div className="grid grid-cols-12">
+        <div className="col-span-12 xl:col-span-8 relative h-[380px]">
+          <Scene camera={cam.camera} target={cam.target} shadowY={cam.shadowY} className="absolute inset-0">
+            <ComponentModel modelType={run.model_type} signals={signals} damage={damage} />
+          </Scene>
+          <div className="absolute left-3 top-3 pointer-events-none">
+            <div className="text-[10px] uppercase tracking-[0.14em] text-amber">{WHAT_IF_LABEL}</div>
+            <div className="text-[14px] text-white font-semibold">after flight {f.flight_index} of {run.flights.length} · {m.mission.name}</div>
+            <div className="text-[11px] text-ink-2">{PROFILE_LABELS[m.mission.profile] ?? m.mission.profile} · load ×{m.mission.load_factor ?? 1} · {m.mission.temperature_c ?? 15} °C · {m.mission.environment ?? 'benign'}</div>
+          </div>
+          <div className="absolute right-3 top-3"><StatusPill status={f.threshold_status} /></div>
+        </div>
+        <div className="col-span-12 xl:col-span-4 border-l border-line p-3 space-y-2">
+          <div className="label">scrub the hypothetical sequence</div>
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary !py-1" onClick={() => setAuto((a) => !a)}>{auto ? 'Stop' : 'Auto-play'}</button>
+            <input type="range" min={0} max={run.flights.length - 1} value={idx} onChange={(e) => { setAuto(false); setIdx(Number(e.target.value)) }} className="flex-1 accent-[#38bdf8]" aria-label="Flight index" />
+            <span className="num text-[12px] w-[60px] text-right">{idx + 1} / {run.flights.length}</span>
+          </div>
+          {Object.entries(f.state_after).filter(([k]) => k in damage.fractions || k === stateKey).map(([k, v]) => {
+            const fr = damage.fractions[k]
+            return (
+              <div key={k}>
+                <div className="flex justify-between text-[11.5px]"><span className="text-ink-2">{stateLabel(k).label}</span><span className="num text-white">{fmtState(k, v)}</span></div>
+                <div className="h-1.5 rounded bg-graphite border border-line overflow-hidden mt-0.5">{fr != null && <div className="h-full transition-[width] duration-300" style={{ width: `${fr * 100}%`, background: healthColor(fr) }} />}</div>
+              </div>
+            )
+          })}
+          <div className="text-[11px] text-ink-3">margin {fmt.pct(f.remaining_margin, 1)} · {f.threshold_detail}</div>
+          {frac != null && frac >= 0.75 && <div className="text-[11px] text-red">Governing state above 75 % of its review limit in this hypothetical sequence.</div>}
+          <div className="text-[10.5px] text-ink-3">The twin state is never changed by a what-if run; this replays a stored hypothetical result.</div>
+        </div>
+      </div>
     </div>
   )
 }

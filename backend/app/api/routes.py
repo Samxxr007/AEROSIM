@@ -18,7 +18,7 @@ from ..engine.registry import DEFAULT_RESPONSE_PARAMS, MODEL_REGISTRY, list_mode
 from ..engine.response import CHANNEL_UNITS, DEFAULT_PHASE_FRACTIONS, ENVIRONMENT_FACTORS, MISSION_PRESETS, PHASES, PHASE_TABLES
 from ..schemas import (ApplyUpdateRequest, CompareRequest, CompleteFlightRequest, ComponentIn, InspectionIn, MaintenanceIn, ManualObservationRequest,
                        PredictRequest, ReconcileRequest, ScenarioIn, ScheduledFlightIn, SettingsIn, SimulationRequest)
-from ..services import csv_import, demo, ground_truth, history, inspection, model_history, reconciliation, seed, simulation, twin, validation
+from ..services import csv_import, demo, ground_truth, history, inspection, model_history, playback, reconciliation, seed, simulation, twin, validation
 from ..services.components import component_assessment
 
 router = APIRouter()
@@ -281,6 +281,18 @@ def next_flight(component_id: str):
         return {"flight": None, "resolution": None}
     comp = db.get("components", component_id)
     return {"flight": f, "resolution": _wrap(twin.resolve_conditions, db, comp, f)}
+
+
+@router.get("/twin/{component_id}/playback/{flight_id}")
+def twin_playback(component_id: str, flight_id: str):
+    """Live-twin playback bundle: phases, forecast channels ±σ, observed channels, intra-flight damage trajectory, reconciliation."""
+    return _wrap(playback.flight_playback, _db(), component_id, flight_id)
+
+
+@router.get("/live")
+def live():
+    """Lightweight polling snapshot for the reactive UI."""
+    return _wrap(playback.live_snapshot, _db())
 
 
 @router.get("/twin/{component_id}/resolve/{flight_id}")

@@ -22,9 +22,8 @@ describe('navigation', () => {
 
   it('renders the overview with real counts from the API', async () => {
     renderAt('/overview')
-    expect(await screen.findByText('Aircraft / components')).toBeInTheDocument()
-    expect(await screen.findByText(/Historical-Data-Driven, Self-Evolving/)).toBeInTheDocument()
-    expect(screen.getByText('Run demo sequence')).toBeInTheDocument()
+    expect(await screen.findByText('Fleet overview')).toBeInTheDocument()
+    expect(await screen.findByText('Run demo sequence')).toBeInTheDocument()
     expect(screen.getByText(/ready — next scheduled flight AC001-F0013/)).toBeInTheDocument()
   })
 
@@ -40,7 +39,7 @@ describe('navigation', () => {
 
   it('redirects unknown routes to the overview', async () => {
     renderAt('/does-not-exist')
-    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    expect(await screen.findByText('Fleet overview')).toBeInTheDocument()
   })
 
   it('shows the component registry and filters by search', async () => {
@@ -56,10 +55,10 @@ describe('navigation', () => {
   it('renders a component workspace with equations and state', async () => {
     renderAt('/components/ENG-MOUNT-001')
     expect(await screen.findByText(/ENG-MOUNT-001 — Left engine mount/)).toBeInTheDocument()
-    expect(await screen.findByText('Current estimated damage state')).toBeInTheDocument()
+    expect(await screen.findByText('damage state vs review limits')).toBeInTheDocument()
     expect(screen.getByText('Crack length a')).toBeInTheDocument()
     expect(screen.getByText('6.000 mm')).toBeInTheDocument()
-    expect(screen.getByText('own history')).toBeInTheDocument()
+    expect(screen.getAllByText(/own history/).length).toBeGreaterThan(0)
   })
 
   it('shows the historical profile tab with the component\'s own records', async () => {

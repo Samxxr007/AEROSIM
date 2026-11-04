@@ -1,6 +1,6 @@
 import type {
   Aircraft, Catalogue, CompareResult, ComponentDetail, ComponentHistory, ComponentSummary, ConditionResolution, DemoResult, Experiment, Flight, ImportResult, Inspection, Maintenance, Mission, MissionPresets, ModelInfo,
-  ModelUpdate, Observation, Overview, Prediction, PredictionSummary, Reconciliation, Scenario, Settings, SimulationRun, SimulationSummary, TemplateInfo, TimelineEvent, TwinStatus, ValidationReport,
+  LiveSnapshot, ModelUpdate, Observation, Overview, PlaybackBundle, Prediction, PredictionSummary, Reconciliation, Scenario, Settings, SimulationRun, SimulationSummary, TemplateInfo, TimelineEvent, TwinStatus, ValidationReport,
 } from './types'
 
 export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
@@ -58,6 +58,8 @@ export const api = {
   initialiseTwin: (id: string) => post<{ component: ComponentSummary; metrics: unknown[] }>(`/twin/${id}/initialise`),
   initialiseAll: () => post<{ component_id: string; model_version: number }[]>('/twin/initialise-all'),
   nextFlight: (id: string) => get<{ flight: Flight | null; resolution: ConditionResolution | null }>(`/twin/${id}/next-flight`),
+  playback: (id: string, flightId: string) => get<PlaybackBundle>(`/twin/${id}/playback/${flightId}`),
+  live: () => get<LiveSnapshot>('/live'),
   resolveConditions: (id: string, flightId: string) => get<ConditionResolution>(`/twin/${id}/resolve/${flightId}`),
   flights: (params?: { aircraft_id?: string; status?: 'scheduled' | 'completed' }) => {
     const qs = new URLSearchParams()

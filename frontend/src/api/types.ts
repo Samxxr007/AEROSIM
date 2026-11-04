@@ -686,3 +686,45 @@ export interface Catalogue {
   failure_catalogue: Record<string, string[]>
   implemented: Record<string, ModelType>
 }
+
+// ----------------------------------------------------------------- live twin playback
+export interface PlaybackBundle {
+  component: { id: string; name: string; model_type: ModelType; aircraft_id: string; position: string | null; part_number: string | null; serial_number: string | null; model_version: number }
+  flight: Pick<Flight, 'id' | 'sequence' | 'status' | 'flight_date' | 'route_or_mission' | 'scheduled' | 'actual' | 'event_time'>
+  prediction_id: string | null
+  preview: boolean
+  preview_note: string | null
+  conditions: Record<string, number | string>
+  condition_provenance: Record<string, string> | null
+  condition_uncertainty: Record<string, number | null>
+  duration_s: number
+  phases: { phase: string; start_s: number; end_s: number }[]
+  t_s: number[]
+  phase: string[]
+  predicted: Record<string, number[]>
+  band: Record<string, { lo: number[]; hi: number[] }>
+  band_note: string
+  units: Record<string, string>
+  observed: { observation_id: string; label: string; provenance: string; anomaly: string; quality_notes?: string[]; t_s: number[]; phase: string[]; channels: Record<string, (number | null)[]>; units: Record<string, string> } | null
+  state_before: Record<string, number>
+  increments: Record<string, number>
+  state_after: Record<string, number>
+  as_flown: { increments: Record<string, number>; state_after: Record<string, number>; threshold_status: ThresholdStatus; provisional?: boolean } | null
+  trajectory: Record<string, number[]>
+  trajectory_note: string
+  limits: Record<string, number | null>
+  state_labels: Record<string, { label: string; unit: string; scale: number }>
+  response_params: Record<string, number>
+  reconciliation: Pick<Reconciliation, 'id' | 'gate' | 'summary' | 'forecast_summary' | 'applied' | 'final_decision' | 'proposals' | 'explanation' | 'model_version'> & { channels?: Record<string, ChannelReconciliation>; condition_deviation?: Record<string, { planned: number | string; actual: number | string }> } | null
+  remaining_life: RemainingLife | null
+  threshold_status: ThresholdStatus | null
+  phase_order: string[]
+}
+
+export interface LiveSnapshot {
+  server_time: string
+  components: { id: string; model_type: ModelType; aircraft_id: string | null; position: string | null; state: Record<string, number>; model_version: number; response_params: Record<string, number>; history_initialised: boolean }[]
+  flights: { id: string; status: 'scheduled' | 'completed'; sequence: number; flight_date: string; route_or_mission: string }[]
+  counts: Record<string, number>
+  activity: Overview['recent_activity']
+}

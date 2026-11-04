@@ -35,7 +35,7 @@ export default function ModelHistoryPage() {
       {data && (
         <>
           <div className="grid xl:grid-cols-2 gap-4">
-            <Card dense>{errSeries.length ? <SeriesChart data={errSeries} xKey="label" series={[{ key: 'forecast', name: 'Forecast error (%)', color: '#7b8794', dashed: true }, { key: 'response', name: 'Response-model error (%)' }]} title="Prediction error across successive flights" unitNote="% · lower is better · not guaranteed to decrease" yFormatter={(v) => `${v.toFixed(1)} %`} /> : <div className="text-[12px] text-ink-3 p-4">No reconciliations yet for this component — initialise the twin from its history.</div>}</Card>
+            <Card dense>{errSeries.length ? <SeriesChart data={errSeries} xKey="label" series={[{ key: 'forecast', name: 'Forecast error (%)', color: '#6f8196', dashed: true }, { key: 'response', name: 'Response-model error (%)' }]} title="Prediction error across successive flights" unitNote="% · lower is better · not guaranteed to decrease" yFormatter={(v) => `${v.toFixed(1)} %`} /> : <div className="text-[12px] text-ink-3 p-4">No reconciliations yet for this component — initialise the twin from its history.</div>}</Card>
             <Card dense>{paramSeries.length > 1 ? <SeriesChart data={paramSeries} xKey="version" series={Object.keys(RESPONSE_LABELS).map((k) => ({ key: k, name: RESPONSE_LABELS[k] }))} title="Response parameters by model version" unitNote="dimensionless factors" yFormatter={(v) => v.toFixed(3)} /> : <div className="text-[12px] text-ink-3 p-4">No applied Stage-A updates yet — response parameters are at their prior values (1.0).</div>}</Card>
           </div>
           <div className="grid xl:grid-cols-5 gap-4">
@@ -46,7 +46,7 @@ export default function ModelHistoryPage() {
                     const Icon = ICON[e.type] ?? History
                     return (
                       <li key={e.id} className="ml-4">
-                        <span className={`absolute -left-[9px] mt-1 w-4 h-4 rounded-full border bg-white flex items-center justify-center ${e.type === 'model_update' ? (e.applied ? 'border-green text-green' : 'border-red text-red') : 'border-line-strong text-ink-3'}`}><Icon size={9} /></span>
+                        <span className={`absolute -left-[9px] mt-1 w-4 h-4 rounded-full border bg-surface flex items-center justify-center ${e.type === 'model_update' ? (e.applied ? 'border-green text-green' : 'border-red text-red') : 'border-line-strong text-ink-3'}`}><Icon size={9} /></span>
                         <div className="text-[12.5px] font-medium flex items-center gap-2 flex-wrap">{e.title}{e.version && <span className="num text-[11px] text-ink-3">v{e.version}</span>}{e.decision && <DecisionPill decision={e.decision} />}{e.anomaly && e.anomaly !== 'none' && <Tag kind="assumption">{e.anomaly}</Tag>}</div>
                         <div className="text-[12px] text-ink-2">{e.detail}</div>
                         <div className="num text-[10.5px] text-ink-3">{fmt.date(e.ts)} · {e.id}</div>

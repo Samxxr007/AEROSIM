@@ -34,7 +34,8 @@ Aircraft components degrade by different mechanisms — structural fatigue and c
 
 | Area | What works |
 |---|---|
-| Fleet & component registry | One demonstration aircraft; 13 individual component instances (aircraft, position, P/N, S/N, installation date); 6 with implemented models (two engine mounts, two landing gears, HP turbine blade, hydraulic actuator — same part numbers never share a damage state); create/edit instances; extended failure catalogue |
+| Live 3D twin & flight playback | Procedural Three.js model per component type (engine mount, landing gear, turbine blade, hydraulic actuator) reacting in real time to load, temperature, vibration and pressure; crack/pit/creep/wear damage rendered from the actual stored state; forecast-vs-sensor gauges and chart revealed as a flight plays; evidence-gate decision animated at the end; scrub, auto-play and ×30–×900 speed |
+| Fleet & component registry | One demonstration aircraft shown as an interactive 3D model with health-coloured component hotspots; 13 individual component instances (aircraft, position, P/N, S/N, installation date); 6 with implemented models (two engine mounts, two landing gears, HP turbine blade, hydraulic actuator — same part numbers never share a damage state); create/edit instances; extended failure catalogue |
 | Component historical profile | Per-instance sensor observation history (measured vs unavailable channels), inspection records, maintenance records, baseline with per-variable provenance, degradation progression |
 | Component digital twin | Current estimated condition with the origin of every state variable, calibrated response parameters, equations, required measurements and legitimate outputs, remaining life, margins, update history, schematic |
 | Twin initialisation | Chronological replay of the component's own history: pre-flight prediction → observation → reconciliation → gated Stage A → as-flown commit per flight; inspections (Stage B); repairs/replacements reset the state |
@@ -43,7 +44,7 @@ Aircraft components degrade by different mechanisms — structural fatigue and c
 | Prediction reconciliation | Prediction ↔ observation linked by flight ID; forecast error split into schedule deviation and response-model error; residual/overlay charts; measurement reliability; evidence gate; controlled Stage A; history incorporation; anomaly injection; CSV upload; manual entry |
 | Inspection evidence & maintenance | 10 evidence types; inverse-variance fusion; new-defect initialisation; contradictory-evidence rejection; identifiable rate-coefficient re-estimation; maintenance repair/replacement handling; audit trail |
 | Model evolution | Timeline of predictions, observations, reconciliations, inspections, maintenance and update decisions; error across successive flights; parameters by version |
-| Validation | 105 backend tests run on request; chronological A / B / C / C-sparse experiment on the component's own flights against the hidden reference |
+| Validation | 111 backend tests run on request; a before/after scoreboard (static model vs self-evolving twin) plus the full chronological A / B / C / C-sparse experiment on the component's own flights against the hidden reference |
 | Methodology, settings & data | Equations and limitations; 9 CSV templates with strict validation; example synthetic dataset; twin re-initialisation; deterministic demo and reset |
 
 ## 4. System architecture
@@ -69,7 +70,7 @@ Entities: aircraft · component instance · flight (scheduled vs actual) · comp
 
 ## 5. Technology stack
 
-Frontend: React 19, TypeScript, Vite, Tailwind CSS 4, Recharts, Lucide, React Router, Zustand, Vitest + Testing Library. Backend: Python 3.11+, FastAPI, Pydantic v2, NumPy, SciPy, Pandas, `rainflow` (ASTM E1049), SQLite, pytest.
+Frontend: React 19, TypeScript, Vite, Tailwind CSS 4, three.js + @react-three/fiber + drei, Recharts, Lucide, React Router, Zustand, Vitest + Testing Library. Backend: Python 3.11+, FastAPI, Pydantic v2, NumPy, SciPy, Pandas, `rainflow` (ASTM E1049), SQLite, pytest.
 
 ## 6. Mathematical models (summary)
 
@@ -116,7 +117,7 @@ cd backend && uvicorn app.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-Or both: `./run_dev.sh`. Tests: `cd backend && pytest -q` (105 tests), `cd frontend && npm test` (17 tests), `npm run build`.
+Or both: `./run_dev.sh`. Tests: `cd backend && pytest -q` (111 tests), `cd frontend && npm test` (17 tests), `npm run build`.
 
 ## 9. Demo instructions
 

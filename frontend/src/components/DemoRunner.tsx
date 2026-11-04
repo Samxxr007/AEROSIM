@@ -1,5 +1,5 @@
 import { Play, RotateCcw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import type { DemoResult } from '../api/types'
@@ -12,6 +12,13 @@ export function DemoRunner({ initial, compact }: { initial?: DemoResult | null; 
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [demoId, setDemoId] = useState('engine_mount')
+  const [shown, setShown] = useState<number>(initial ? initial.steps.length : 0)
+  useEffect(() => {
+    if (!result) return
+    if (shown >= result.steps.length) return
+    const t = setTimeout(() => setShown((n) => n + 1), 220)
+    return () => clearTimeout(t)
+  }, [result, shown])
   const { pushToast, bump, setSelectedComponentId, setLastPredictionId, setLastReconciliationId } = useAppStore()
 
   const run = async () => {
@@ -19,6 +26,7 @@ export function DemoRunner({ initial, compact }: { initial?: DemoResult | null; 
     setError(null)
     try {
       const r = await api.runDemo(demoId, true)
+      setShown(0)
       setResult(r)
       setSelectedComponentId(r.component_id)
       setLastPredictionId(r.ids.next_prediction_id)
@@ -69,8 +77,8 @@ export function DemoRunner({ initial, compact }: { initial?: DemoResult | null; 
         <div className="space-y-2">
           <Callout kind="warning" title={result.label}>Seed {result.seed}. Observations and inspections are drawn from a hidden reference model; the twin never reads its parameters.</Callout>
           <ol className={`grid gap-1.5 ${compact ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-2'}`}>
-            {result.steps.map((st) => (
-              <li key={st.step} className="flex gap-2 border border-line rounded px-3 py-2 bg-white">
+            {result.steps.slice(0, shown).map((st) => (
+              <li key={st.step} className="flex gap-2 border border-line rounded-md px-3 py-2 bg-surface-2 animate-[fadein_.35s_ease]" style={{ borderLeft: `3px solid ${st.step <= 5 ? '#6f8196' : st.step <= 8 ? '#38bdf8' : st.step <= 11 ? '#f5b041' : st.step <= 13 ? '#3ddc97' : '#a78bfa'}` }}>
                 <span className="num text-[11px] text-white bg-graphite rounded px-1.5 h-fit mt-0.5">{st.step}</span>
                 <div className="min-w-0">
                   <div className="text-[12.5px] font-medium">{st.title}</div>

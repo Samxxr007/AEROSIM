@@ -1,4 +1,4 @@
-import { History, Target } from 'lucide-react'
+import { History, Radio, Target } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
@@ -116,7 +116,7 @@ export default function PredictionsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-[15px] font-semibold">Prediction {pred.id}</h2>
             <span className="text-[12.5px] text-ink-2">{pred.component_id} · flight {pred.flight_id} ({pred.flight_event_time.slice(0, 10)}) · model v{pred.model_version} · inputs {pred.input_data_version} · made {fmt.date(pred.prediction_timestamp)} <Tag kind="simulation">pre-flight prediction</Tag></span>
-            <span className="ml-auto flex gap-2"><Link to="/reconciliation" className="btn-secondary">Reconcile after the flight →</Link></span>
+            <span className="ml-auto flex gap-2"><Link to={`/live/${pred.component_id}?flight=${pred.flight_id}`} className="btn-primary"><Radio size={13} /> Watch this forecast in the live twin</Link><Link to="/reconciliation" className="btn-secondary">Reconcile after the flight →</Link></span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             <Stat label={`Predicted ${stateLabel(key).label} after flight`} value={fmtState(key, pred.predicted.state_after[key])} hint={`from ${fmtState(key, pred.state_before[key])} (Δ ${fmtState(key, pred.predicted.increments[key] ?? 0)})`} />

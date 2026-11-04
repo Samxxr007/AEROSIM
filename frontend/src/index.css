@@ -1,49 +1,80 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   AeroSim mission-control theme (dark, instrument-panel feel)
+   --------------------------------------------------------------------------- */
 @theme {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-paper: #f6f5f2;
-  --color-surface: #ffffff;
-  --color-line: #e3e1db;
-  --color-line-strong: #cfcbc2;
-  --color-ink: #1f2933;
-  --color-ink-2: #52606d;
-  --color-ink-3: #7b8794;
-  --color-graphite: #1b2430;
-  --color-graphite-2: #273241;
-  --color-accent: #1f6f8b;
-  --color-accent-2: #3fa7c9;
-  --color-accent-soft: #e6f1f5;
-  --color-amber: #b7791f;
-  --color-amber-soft: #fbf1df;
-  --color-red: #b3261e;
-  --color-red-soft: #fbe9e7;
-  --color-green: #2f7d4f;
-  --color-green-soft: #e7f3ec;
-  --color-violet: #5b4b8a;
+  --color-paper: #0a0f16;        /* page background */
+  --color-surface: #111924;      /* cards */
+  --color-surface-2: #16212e;    /* raised */
+  --color-line: #1f2b3a;
+  --color-line-strong: #2b3a4d;
+  --color-ink: #e6edf3;
+  --color-ink-2: #a7b6c6;
+  --color-ink-3: #6f8196;
+  --color-graphite: #0d141c;
+  --color-graphite-2: #121b26;
+  --color-accent: #38bdf8;
+  --color-accent-2: #7dd3fc;
+  --color-accent-soft: #0e2a3b;
+  --color-amber: #f5b041;
+  --color-amber-soft: #2f2410;
+  --color-red: #f0605d;
+  --color-red-soft: #3a1818;
+  --color-green: #3ddc97;
+  --color-green-soft: #0f2d22;
+  --color-violet: #a78bfa;
+  --color-magenta: #f472b6;
 }
 
 html, body, #root { min-height: 100%; }
-body { @apply bg-paper text-ink font-sans antialiased text-[14px]; }
+body {
+  @apply bg-paper text-ink font-sans antialiased text-[13.5px];
+  background-image:
+    radial-gradient(1200px 600px at 20% -10%, rgba(56, 189, 248, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(167, 139, 250, 0.06), transparent 60%);
+  background-attachment: fixed;
+}
 h1, h2, h3 { @apply tracking-tight; }
-@utility label { @apply text-[11px] uppercase tracking-wider text-ink-3 font-medium; }
-@utility btn { @apply inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[13px] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+
+@utility label { @apply text-[10.5px] uppercase tracking-[0.12em] text-ink-3 font-medium; }
+@utility btn { @apply inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed active:translate-y-px; }
 @utility num { @apply font-mono tabular-nums; }
-@utility card { @apply bg-surface border border-line rounded-md; }
+@utility card { @apply bg-surface/90 border border-line rounded-xl shadow-[0_1px_0_rgba(255,255,255,0.03)_inset,0_8px_24px_-16px_rgba(0,0,0,0.8)] backdrop-blur; }
 @utility card-pad { @apply p-4; }
-@utility input { @apply w-full border border-line-strong rounded px-2 py-1.5 text-[13px] bg-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 disabled:bg-paper disabled:text-ink-3; }
-@utility btn-primary { @apply btn bg-accent text-white border-accent hover:bg-[#195c73]; }
-@utility btn-secondary { @apply btn bg-white text-ink border-line-strong hover:bg-paper; }
+@utility input { @apply w-full border border-line-strong rounded-md px-2 py-1.5 text-[13px] bg-graphite text-ink focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 disabled:bg-graphite-2 disabled:text-ink-3; }
+@utility btn-primary { @apply btn bg-accent text-[#06202e] border-accent hover:bg-accent-2 shadow-[0_0_0_1px_rgba(56,189,248,0.25),0_0_18px_-6px_rgba(56,189,248,0.8)]; }
+@utility btn-secondary { @apply btn bg-surface-2 text-ink border-line-strong hover:border-accent/60 hover:text-white; }
 @utility btn-ghost { @apply btn bg-transparent text-accent border-transparent hover:bg-accent-soft; }
-@utility btn-danger { @apply btn bg-white text-red border-red/40 hover:bg-red-soft; }
-@utility table { @apply w-full text-[13px]; }
-.table th { @apply text-left label py-2 px-2 border-b border-line bg-paper/60; }
+@utility btn-danger { @apply btn bg-surface-2 text-red border-red/40 hover:bg-red-soft; }
+@utility table { @apply w-full text-[12.5px]; }
+.table th { @apply text-left label py-2 px-2 border-b border-line bg-graphite/60; }
 .table td { @apply py-1.5 px-2 border-b border-line/70 align-top; }
-.table tr:hover td { @apply bg-paper/50; }
-.recharts-cartesian-axis-tick-value { font-family: var(--font-mono); font-size: 11px; fill: #52606d; }
-.recharts-legend-item-text { font-size: 12px; }
-.recharts-default-tooltip { font-size: 12px !important; border: 1px solid #e3e1db !important; border-radius: 4px; }
+.table tr:hover td { @apply bg-white/[0.025]; }
+
+@utility glow-ring { box-shadow: 0 0 0 1px rgba(56,189,248,0.35), 0 0 24px -4px rgba(56,189,248,0.55); }
+@utility scanline {
+  background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
+}
+
+/* live indicator */
+@keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.8); } }
+.live-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.sweep::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(56,189,248,0.18), transparent); animation: sweep 2.2s linear infinite; }
+
+/* recharts on dark */
+.recharts-cartesian-axis-tick-value { font-family: var(--font-mono); font-size: 10.5px; fill: #8798ab; }
+.recharts-cartesian-grid line { stroke: rgba(255,255,255,0.06); }
+.recharts-legend-item-text { font-size: 11.5px; color: #a7b6c6 !important; }
+.recharts-default-tooltip { font-size: 12px !important; background: #0d141c !important; border: 1px solid #2b3a4d !important; border-radius: 6px; color: #e6edf3 !important; }
+.recharts-tooltip-label { color: #a7b6c6 !important; }
+.recharts-reference-line line { stroke-dasharray: 4 4; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #cfcbc2; border-radius: 6px; border: 2px solid #f6f5f2; }
+::-webkit-scrollbar-thumb { background: #2b3a4d; border-radius: 6px; border: 2px solid #0a0f16; }
+code { @apply font-mono text-[12px] text-accent-2; }
+
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

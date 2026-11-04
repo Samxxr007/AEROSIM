@@ -3,18 +3,18 @@ import type { FlightRecordSim, Reconciliation, Uncertainty } from '../../api/typ
 import { CHANNEL_LABELS, fmt, stateLabel } from '../../utils/format'
 
 export const C = {
-  predicted: '#1f6f8b',
-  actual: '#b7791f',
-  residual: '#5b4b8a',
-  band: '#1f6f8b',
-  static: '#7b8794',
-  updated: '#1f6f8b',
-  truth: '#2f7d4f',
-  series: ['#1f6f8b', '#b7791f', '#5b4b8a', '#2f7d4f', '#b3261e'],
+  predicted: '#38bdf8',
+  actual: '#f5b041',
+  residual: '#a78bfa',
+  band: '#38bdf8',
+  static: '#6f8196',
+  updated: '#38bdf8',
+  truth: '#3ddc97',
+  series: ['#38bdf8', '#f5b041', '#a78bfa', '#3ddc97', '#f0605d'],
 }
 
-const grid = <CartesianGrid stroke="#ebe9e4" strokeDasharray="2 3" />
-const axisStyle = { fontSize: 11, fill: '#52606d' }
+const grid = <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="2 3" />
+const axisStyle = { fontSize: 11, fill: '#8798ab' }
 const tooltipStyle = { fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }
 const tf5 = (v: unknown, n: unknown): [string, string] => [fmt.num(Number(v), 5), String(n)]
 

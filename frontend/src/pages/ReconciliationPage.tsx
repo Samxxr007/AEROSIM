@@ -1,4 +1,4 @@
-import { Check, GitCompare, History, PlaneLanding, Upload } from 'lucide-react'
+import { Check, GitCompare, History, PlaneLanding, Radio, Upload } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
@@ -186,6 +186,7 @@ export default function ReconciliationPage() {
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-[15px] font-semibold">Reconciliation {rec.id}</h2>
             <span className="text-[12.5px] text-ink-2">{rec.component_id} · flight {rec.flight_id} · prediction {rec.prediction_id} (v{rec.prediction_model_version}) · <Tag kind={rec.observation_provenance} /> {rec.observation_anomaly !== 'none' && <Tag kind="assumption">anomaly: {rec.observation_anomaly}</Tag>}</span>
+            <Link to={`/live/${rec.component_id}?flight=${rec.flight_id}`} className="btn-secondary !py-1 ml-auto"><Radio size={13} /> Replay this flight in the live twin</Link>
           </div>
           <Callout kind="warning" title={rec.observation_label}>{rec.note}</Callout>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-2">

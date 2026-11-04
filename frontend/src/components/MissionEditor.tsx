@@ -31,7 +31,7 @@ export function MissionEditor({ missions, onChange, presets, modelType, maxMissi
       {missions.map((m, i) => {
         const pv = presetValues(m.profile)
         return (
-          <div key={i} className="border border-line rounded bg-white">
+          <div key={i} className="border border-line rounded bg-surface-2">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-line bg-paper/60">
               <span className="num text-[12px] text-ink-3 w-8">M{i + 1}</span>
               <select className="input w-[240px]" value={m.profile} onChange={(e) => update(i, { profile: e.target.value as Mission['profile'], name: undefined })} aria-label={`Mission ${i + 1} profile`}>
