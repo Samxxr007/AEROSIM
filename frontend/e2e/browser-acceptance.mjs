@@ -10,7 +10,7 @@ try {
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
   await page.goto(baseUrl + '/overview', { waitUntil: 'networkidle' })
-  await page.getByText('Fleet overview', { exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Fleet overview', exact: true }).waitFor()
   await page.getByRole('link', { name: 'Component registry' }).click()
   await page.getByRole('link', { name: 'ENG-MOUNT-001', exact: true }).click()
   await page.getByRole('button', { name: 'Historical profile' }).click()
