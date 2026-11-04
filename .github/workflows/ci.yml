@@ -47,3 +47,56 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: python -m pip install -r requirements.txt
+      - name: Install frontend dependencies and Playwright
+        working-directory: frontend
+        run: |
+          npm ci
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Start API and frontend
+        env:
+          AEROSIM_DB_PATH: ${{ runner.temp }}/aerosim-e2e.db
+        run: |
+          (cd backend && uvicorn app.main:app --host 127.0.0.1 --port 8000) > "${{ runner.temp }}/backend.log" 2>&1 &
+          (cd frontend && npm run dev -- --host 127.0.0.1 --port 5173) > "${{ runner.temp }}/frontend.log" 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8000/api/health >/dev/null && curl -fsS http://127.0.0.1:5173/overview >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "${{ runner.temp }}/backend.log"
+          cat "${{ runner.temp }}/frontend.log"
+          exit 1
+      - name: Run browser acceptance workflow
+        env:
+          AEROSIM_E2E_URL: http://127.0.0.1:5173
+        run: node frontend/e2e/browser-acceptance.mjs
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aerosim-e2e-logs
+          path: |
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/frontend.log

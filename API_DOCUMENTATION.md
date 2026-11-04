@@ -21,7 +21,10 @@ Base URL: `http://127.0.0.1:8000/api`. Interactive OpenAPI docs: `http://127.0.0
 | GET | `/components/{id}` | Instance + assessment + twin status + model description + inspections, maintenance, updates, predictions, what-if runs |
 | GET | `/components/{id}/history` | **Component Historical Profile**: baseline with provenance, per-flight observation summaries (measured / unavailable channels), inspections, maintenance, flight log, evidence summary |
 | POST | `/components` | Create an instance (`ComponentIn`: name, system, aircraft_id, part/serial numbers, installation_date, model_type, parameters, state → baseline, …) |
-| PUT | `/components/{id}` | Edit profile / parameters / state (validated by the model) |
+| PUT | `/components/{id}` | Edit profile / parameters / state (validated by the model); manufacturer/part/serial identity cannot be silently overwritten |
+| GET | `/components/{id}/identity-events` | Audited component identity corrections and replacement events |
+| POST | `/components/{id}/identity-change` | Correct manufacturer/part/serial with effective date, reason, provenance and maintenance reference; records before/after identity |
+| POST | `/components/{id}/replace` | Retire old instance and create a new component ID with a new serial, installation date, baseline/model version 1 and predecessor link; old predictions/history remain attached to the retired ID |
 
 ## Twin lifecycle
 
@@ -70,7 +73,7 @@ Base URL: `http://127.0.0.1:8000/api`. Interactive OpenAPI docs: `http://127.0.0
 | POST | `/inspections` | `InspectionIn` → stored record + Stage-B decision/update |
 | POST | `/inspections/synthetic?component_id=&quantity=&measurement_sd=&method=&seed=` | Demonstration measurement drawn from the hidden reference |
 | GET | `/maintenance?component_id=` | Maintenance records |
-| POST | `/maintenance` | `MaintenanceIn` (activity, repair_or_replacement, damage_after, apply) → record + state reset/update |
+| POST | `/maintenance` | `MaintenanceIn` (activity, repair_or_replacement, damage_after, apply) → record + repair update; physical replacement is rejected here and must use `/components/{id}/replace` |
 
 ## History and validation
 
@@ -79,6 +82,7 @@ Base URL: `http://127.0.0.1:8000/api`. Interactive OpenAPI docs: `http://127.0.0
 | GET | `/model-history?component_id=` | Timeline (predictions, observations, reconciliations, inspections, maintenance, updates), update records, reconciliation summaries |
 | GET | `/validation?force=&component_id=` | pytest results (cached 10 min unless `force`) + chronological experiment + demo results + revealed reference models |
 | GET | `/validation/experiment/{component_id}` | Chronological A / B / C / C-sparse experiment only |
+| GET | `/validation/external/phm2019` | Local PHM 2019 coupon benchmark: rolling-origin baselines, leave-one-specimen-out Paris-integrator MAE/RMSE and parsing warnings; returns `not_ready` until the user supplies local files |
 
 ## Secondary what-if (never changes the twin)
 
@@ -96,6 +100,6 @@ Base URL: `http://127.0.0.1:8000/api`. Interactive OpenAPI docs: `http://127.0.0
 | POST | `/demo/run?demo_id=engine_mount|hydraulic_actuator&reset=true` | 15-step deterministic sequence + chronological experiment |
 | GET | `/demo` · POST `/demo/reset` | Available demos / results · reset to the seeded fleet and history |
 | GET/PUT | `/settings` | mc_samples, rls_forgetting_factor, reduced_confidence_blend, max_relative_change_per_update, demo_seed |
-| GET | `/data/templates` · `/data/templates/{dataset}.csv` | Template metadata · downloadable CSV (datasets: flight_schedule, flight_actuals, flight_observations, predicted_outputs, inspection_findings, maintenance_records, operational_records, material_properties, load_history) |
-| POST | `/data/import?dataset=&commit=` (multipart `file`) | Strict validation (`commit=false` = dry run); exact problems returned |
+| GET | `/data/templates` · `/data/templates/{dataset}.csv` | Template metadata · downloadable CSV (datasets: flight_schedule, flight_actuals, flight_observations, predicted_outputs, inspection_findings, maintenance_records, operational_records, material_properties, load_history). Operational summaries accept optional `flight_id`; load histories accept optional `flight_id` and `stress_basis=not_mapped|critical_net_section`. |
+| POST | `/data/import?dataset=&commit=` (multipart `file`) | Strict validation (`commit=false` = dry run); exact problems returned. Linked operational summaries feed the component's as-flown history after aircraft/date checks; sensor-based Stage A still requires observation channels. Stress traces preserve ordered seconds/MPa samples and rainflow bins; only an explicit linked engine-mount `critical_net_section` declaration feeds the as-flown crack-growth calculation. Unmapped traces are archived only. |
 | GET | `/data/imports` · `/activity` | Import records · activity log |

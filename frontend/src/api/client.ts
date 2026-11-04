@@ -1,5 +1,5 @@
 import type {
-  Aircraft, Catalogue, CompareResult, ComponentDetail, ComponentHistory, ComponentSummary, ConditionResolution, DemoResult, Experiment, Flight, ImportResult, Inspection, Maintenance, Mission, MissionPresets, ModelInfo,
+  Aircraft, Catalogue, CompareResult, ComponentDetail, ComponentHistory, ComponentIdentityEvent, ComponentSummary, ConditionResolution, DemoResult, Experiment, Flight, ImportResult, Inspection, Maintenance, Mission, MissionPresets, ModelInfo,
   LiveSnapshot, ModelUpdate, Observation, Overview, PlaybackBundle, Prediction, PredictionSummary, Reconciliation, Scenario, Settings, SimulationRun, SimulationSummary, TemplateInfo, TimelineEvent, TwinStatus, ValidationReport, PHM2019Report,
 } from './types'
 
@@ -54,6 +54,10 @@ export const api = {
   },
   component: (id: string) => get<ComponentDetail>(`/components/${id}`),
   componentHistory: (id: string) => get<ComponentHistory>(`/components/${id}/history`),
+  changeComponentIdentity: (id: string, body: { effective_date: string; manufacturer?: string; part_number?: string; serial_number?: string; reason: string; maintenance_reference: string; provenance?: 'manual' | 'uploaded' }) =>
+    post<{ component: ComponentDetail; event: ComponentIdentityEvent }>(`/components/${id}/identity-change`, body),
+  replaceComponent: (id: string, body: { replacement_date: string; new_serial_number: string; reason: string; maintenance_reference: string; manufacturer?: string; part_number?: string; baseline_state?: Record<string, number>; baseline_provenance?: Record<string, string>; provenance?: 'manual' | 'uploaded' }) =>
+    post<{ retired_component: ComponentDetail; replacement_component: ComponentDetail; maintenance: Maintenance }>(`/components/${id}/replace`, body),
   twin: (id: string) => get<TwinStatus>(`/twin/${id}`),
   initialiseTwin: (id: string) => post<{ component: ComponentSummary; metrics: unknown[] }>(`/twin/${id}/initialise`),
   initialiseAll: () => post<{ component_id: string; model_version: number }[]>('/twin/initialise-all'),

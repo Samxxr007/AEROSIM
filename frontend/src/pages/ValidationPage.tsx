@@ -164,7 +164,36 @@ function PHMBenchmark({ report, loading, error, onRefresh }: {
             </div>
           </div>
           {report.warnings?.length ? <Callout kind="warning" title="Dataset parsing warnings"><ul className="list-disc pl-5">{report.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></Callout> : null}
-          <div className="text-[11px] text-ink-3 mt-2">T7 and T8 are intentionally excluded from scored metrics because the challenge provides no optical crack-length ground truth for those validation specimens.</div>
+          {report.physics_paris_loo?.status === 'ready' && report.physics_paris_loo.summary && (
+            <Card title="Independent physics check — Paris crack-growth integrator" subtitle="Leave-one-specimen-out: fit C,m on other training coupons, then forecast the held-out specimen sequentially with AeroSim's integrate_paris implementation." dense>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <Stat label="Held-out forecast points" value={report.physics_paris_loo.summary.scored_points} />
+                <Stat label="Crack-length MAE" value={metric(report.physics_paris_loo.summary.mae_mm)} unit="mm" />
+                <Stat label="Crack-length RMSE" value={metric(report.physics_paris_loo.summary.rmse_mm)} unit="mm" />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="table text-[12px]">
+                  <thead><tr><th>Held-out specimen</th><th>Status</th><th>Scored points</th><th>MAE (mm)</th><th>RMSE (mm)</th><th>Fitted Paris m</th><th>Fitted Paris C</th><th>Training specimens</th></tr></thead>
+                  <tbody>{report.physics_paris_loo.by_specimen.map((fold) => (
+                    <tr key={fold.specimen}>
+                      <td className="num">{fold.specimen}</td><td>{fold.status}</td>
+                      <td className="num">{fold.scored_points ?? '—'}</td>
+                      <td className="num">{metric(fold.mae_mm)}</td><td className="num">{metric(fold.rmse_mm)}</td>
+                      <td className="num">{metric(fold.fitted_parameters?.paris_m as number | undefined)}</td>
+                      <td className="num">{metric(fold.fitted_parameters?.paris_C_m_per_cycle_per_MPa_sqrt_m_pow_m as number | undefined)}</td>
+                      <td className="num">{Array.isArray(fold.fitted_parameters?.training_specimens) ? (fold.fitted_parameters?.training_specimens as string[]).join(', ') : '—'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              <div className="text-[11px] text-ink-2 mt-2">{report.physics_paris_loo.method_note}</div>
+              <Callout kind="warning">{report.physics_paris_loo.transfer_limit}</Callout>
+            </Card>
+          )}
+          {report.physics_paris_loo?.status === 'not_run' && (
+            <Callout kind="warning" title="Paris-law external comparison not run">{report.physics_paris_loo.reason ?? 'Loading profiles or sufficient held-out measurements were not available.'}</Callout>
+          )}
+          <div className="text-[11px] text-ink-3 mt-2">T7 and T8 are intentionally excluded from scored metrics because the challenge provides no optical crack-length ground truth.</div>
         </>
       )}
     </Card>

@@ -24,11 +24,13 @@ The backend first looks for `Description_T1.xlsx` through `Description_T6.xlsx` 
 
 ## What AeroSim evaluates
 
-The Validation page reports a within-specimen rolling-origin, one-step-ahead test. Each test prediction uses only earlier labels from the same specimen. It compares last-value carry-forward with a linear trend clipped to non-decreasing crack length and reports MAE/RMSE. This is an empirical baseline comparison, **not** a Paris-law calibration or RUL-to-failure validation.
+The Validation page reports a within-specimen rolling-origin, one-step-ahead baseline comparison, followed by a leave-one-specimen-out Paris-law method check. For each fold, Paris C and m are fitted using only five training specimens; the held-out training specimen is forecast sequentially from its previous optical crack measurement using AeroSim's integrate_paris. The panel reports crack-length MAE/RMSE overall and by held-out specimen.
+
+The Paris check uses explicit assumptions (Y=1.12, stress ratio R=0, delta-K threshold=0 and a high numerical K_IC guard because a transferable specimen toughness is not supplied to this workflow). Zero-crack initiation intervals are excluded because Paris' region-II law models propagation, not crack initiation. The loading profile is repeated to represent each measured cycle interval. This is not a remaining-life-to-failure validation or a validated material-parameter transfer.
 
 The loader also scans the PHM sensor CSV/TXT files for the documented `time,ch1,ch2` format and computes basic actuation/received-signal summaries. Signal-feature correlations are descriptive only; no signal-to-crack machine-learning model is claimed.
 
-This laboratory coupon dataset is not aircraft flight telemetry and is not used as a scheduled flight, sensor observation, or aircraft component record. It supports independent crack-growth/inspection-evidence benchmarking only.
+This laboratory coupon dataset is not aircraft flight telemetry and is not used as a scheduled flight, sensor observation, or aircraft component record. It supports independent crack-growth-method benchmarking only. Even a good held-out error validates the crack-growth integration method on the aluminium lap-joint coupons; it does not validate AeroSim's titanium-class engine-mount material coefficients, geometry, effective section, load path, local stress concentration, S-N curve, aircraft operational response or RUL.
 
 ## References
 

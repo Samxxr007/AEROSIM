@@ -7,16 +7,18 @@ Secondary (what-if): /scenarios · /simulations (never change the twin state)
 from __future__ import annotations
 
 import asyncio
+import copy
+from datetime import date as date_type
 from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import PlainTextResponse
 
-from ..db import Database, get_db, sanitize
+from ..db import Database, get_db, now_iso, sanitize
 from ..engine.base import EngineError
 from ..engine.registry import DEFAULT_RESPONSE_PARAMS, MODEL_REGISTRY, list_models
 from ..engine.response import CHANNEL_UNITS, DEFAULT_PHASE_FRACTIONS, ENVIRONMENT_FACTORS, MISSION_PRESETS, PHASES, PHASE_TABLES
-from ..schemas import (ApplyUpdateRequest, CompareRequest, CompleteFlightRequest, ComponentIn, InspectionIn, MaintenanceIn, ManualObservationRequest,
+from ..schemas import (ApplyUpdateRequest, CompareRequest, CompleteFlightRequest, ComponentIdentityChangeIn, ComponentIn, ComponentReplacementIn, InspectionIn, MaintenanceIn, ManualObservationRequest,
                        PredictRequest, ReconcileRequest, ScenarioIn, ScheduledFlightIn, SettingsIn, SimulationRequest)
 from ..services import csv_import, demo, ground_truth, history, inspection, model_history, phm2019, playback, reconciliation, seed, simulation, twin, validation
 from ..services.components import component_assessment
@@ -150,6 +152,7 @@ def get_component(component_id: str):
         "model": {"display_name": model.display_name, "mechanisms": model.mechanisms, "equations": model.equations(), "relevant_mission_inputs": model.relevant_mission_inputs(), "uncertain_parameters": model.uncertain_parameters()} if model else None,
         "inspections": db.list("inspections", {"component_id": component_id}, newest_first=True),
         "maintenance": db.list("maintenance", {"component_id": component_id}, newest_first=True),
+        "identity_events": db.list("component_identity_events", {"component_id": component_id}, newest_first=True),
         "model_updates": db.list("model_updates", {"component_id": component_id}, newest_first=True),
         "predictions": [{k: p.get(k) for k in ("id", "flight_id", "flight_sequence", "model_version", "status", "prediction_timestamp", "threshold_crossing_fraction", "committed")} for p in db.list("predictions", {"component_id": component_id}, newest_first=True)],
         "runs": [{k: r[k] for k in ("id", "label", "n_flights", "threshold_status", "model_version", "created_at")} for r in db.list("simulation_runs", {"component_id": component_id}, newest_first=True, limit=10)],
@@ -183,6 +186,7 @@ def component_history(component_id: str):
         "observations": obs_rows,
         "operational_records": sorted(db.list("operational_records", {"component_id": component_id}), key=lambda r: r.get("event_time") or r.get("operational_date") or ""),
         "load_histories": sorted(db.list("load_histories", {"component_id": component_id}), key=lambda r: r.get("event_time") or r.get("created_at") or ""),
+        "identity_events": sorted(db.list("component_identity_events", {"component_id": component_id}), key=lambda r: r.get("event_time") or r.get("created_at") or ""),
         "inspections": sorted(db.list("inspections", {"component_id": component_id}), key=lambda i: i.get("event_time") or i["inspection_date"]),
         "maintenance": sorted(db.list("maintenance", {"component_id": component_id}), key=lambda m: m.get("event_time") or m["maintenance_date"]),
         "flight_log": c.get("flight_log", []),
@@ -238,6 +242,10 @@ def update_component(component_id: str, body: ComponentIn):
         raise HTTPException(404, "Component not found")
     upd = body.model_dump(exclude_unset=True)
     upd.pop("id", None)
+    identity_fields = ("manufacturer", "part_number", "serial_number")
+    changed_identity = [field for field in identity_fields if field in upd and str(upd[field] or "") != str(c.get(field) or "")]
+    if changed_identity:
+        raise HTTPException(409, f"Physical identity fields {', '.join(changed_identity)} cannot be overwritten through component edit. Use POST /api/components/{component_id}/identity-change for an audited correction or /api/components/{component_id}/replace for a physical replacement.")
     if upd.get("parameters"):
         for k, v in upd["parameters"].items():
             if k in c["parameters"]:
@@ -257,6 +265,215 @@ def update_component(component_id: str, body: ComponentIn):
     db.upsert("components", c)
     db.log_activity("component", f"Component {component_id} edited (manual input).", {"component_id": component_id})
     return get_component(component_id)
+
+
+@router.get("/components/{component_id}/identity-events")
+def component_identity_events(component_id: str):
+    if _db().get("components", component_id) is None:
+        raise HTTPException(404, "Component not found")
+    return _db().list("component_identity_events", {"component_id": component_id}, newest_first=True)
+
+
+@router.post("/components/{component_id}/identity-change")
+def change_component_identity(component_id: str, body: ComponentIdentityChangeIn):
+    db = _db()
+    component = db.get("components", component_id)
+    if component is None:
+        raise HTTPException(404, "Component not found")
+    if component.get("lifecycle_status") == "retired":
+        raise HTTPException(409, "A retired component identity is immutable; record a correction on the active successor if required.")
+    try:
+        effective_date = date_type.fromisoformat(body.effective_date).isoformat()
+    except ValueError as exc:
+        raise HTTPException(422, "effective_date must be an ISO date (YYYY-MM-DD).") from exc
+
+    requested = {k: v for k, v in {
+        "manufacturer": body.manufacturer,
+        "part_number": body.part_number,
+        "serial_number": body.serial_number,
+    }.items() if v is not None}
+    changes = {k: {"before": component.get(k), "after": v} for k, v in requested.items() if str(component.get(k) or "") != str(v)}
+    if not changes:
+        raise HTTPException(422, "At least one physical identity field must change.")
+    new_serial = requested.get("serial_number")
+    if new_serial and any(c["id"] != component_id and c.get("serial_number") == new_serial for c in db.list("components")):
+        raise HTTPException(409, f"Serial number {new_serial} is already registered to another component instance.")
+
+    old_identity = {k: component.get(k) for k in ("id", "manufacturer", "part_number", "serial_number", "installation_date")}
+    # Backfill old predictions with the identity they were created against before correcting the current identity.
+    for prediction in db.list("predictions", {"component_id": component_id}):
+        if not prediction.get("component_identity_snapshot"):
+            prediction["component_identity_snapshot"] = old_identity
+            db.upsert("predictions", prediction)
+
+    component.update(requested)
+    component["identity_last_changed_on"] = effective_date
+    db.upsert("components", component)
+    new_identity = {k: component.get(k) for k in ("id", "manufacturer", "part_number", "serial_number", "installation_date")}
+    event = db.insert("component_identity_events", {
+        "component_id": component_id,
+        "related_component_id": None,
+        "event_type": "identity_correction",
+        "effective_date": effective_date,
+        "event_time": f"{effective_date}T00:00:00+00:00",
+        "before_identity": old_identity,
+        "after_identity": new_identity,
+        "changes": changes,
+        "reason": body.reason,
+        "maintenance_reference": body.maintenance_reference,
+        "provenance": body.provenance,
+    }, "ide")
+    db.log_activity("component_identity", f"Audited identity correction for {component_id} (ref {body.maintenance_reference}).", {"component_id": component_id, "identity_event_id": event["id"]})
+    return {"component": get_component(component_id), "event": event}
+
+
+@router.post("/components/{component_id}/replace", status_code=201)
+def replace_component_instance(component_id: str, body: ComponentReplacementIn):
+    db = _db()
+    old = db.get("components", component_id)
+    if old is None:
+        raise HTTPException(404, "Component not found")
+    if old.get("lifecycle_status") == "retired":
+        raise HTTPException(409, f"Component {component_id} is already retired.")
+    try:
+        replacement_date = date_type.fromisoformat(body.replacement_date).isoformat()
+    except ValueError as exc:
+        raise HTTPException(422, "replacement_date must be an ISO date (YYYY-MM-DD).") from exc
+    if old.get("installation_date") and replacement_date < old["installation_date"]:
+        raise HTTPException(422, f"Replacement date {replacement_date} is earlier than the component installation date {old['installation_date']}.")
+    completed_dates = [
+        f.get("flight_date") for f in db.list("flights", {"aircraft_id": old.get("aircraft_id")})
+        if f.get("status") == "completed" and f.get("flight_date")
+    ]
+    latest_completed_date = max(completed_dates) if completed_dates else None
+    if latest_completed_date and replacement_date < latest_completed_date:
+        raise HTTPException(422, f"Replacement date {replacement_date} cannot precede the latest completed aircraft flight ({latest_completed_date}).")
+    if any(c.get("serial_number") == body.new_serial_number for c in db.list("components")):
+        raise HTTPException(409, f"Serial number {body.new_serial_number} is already registered.")
+    if not old.get("model_type") or old["model_type"] not in MODEL_REGISTRY:
+        raise HTTPException(422, "Physical replacement is supported only for registered component models.")
+    model = MODEL_REGISTRY[old["model_type"]]
+    defaults = {k: p.to_dict() for k, p in model.default_parameters().items()}
+    params = copy.deepcopy(old.get("parameters") or defaults)
+    # Operationally calibrated coefficients belong to the retired physical instance and are not inherited.
+    for key, value in params.items():
+        if value.get("provenance") == "calibrated" and key in defaults:
+            params[key] = defaults[key]
+    parameter_errors = model.validate_parameters({k: float(v["value"]) for k, v in params.items()})
+    if parameter_errors:
+        raise HTTPException(422, "The replacement's engineering parameters are invalid: " + "; ".join(parameter_errors))
+
+    new_state = model.default_state()
+    supplied_state = body.baseline_state or {}
+    unknown_state = sorted(set(supplied_state) - set(new_state))
+    if unknown_state:
+        raise HTTPException(422, "Unknown replacement baseline state variable(s): " + ", ".join(unknown_state))
+    new_state.update(supplied_state)
+    baseline_provenance = body.baseline_provenance or {
+        key: ("replacement baseline supplied with this transaction" if key in supplied_state else "model default for replacement instance — verify against inspection/OEM record")
+        for key in new_state
+    }
+    if set(baseline_provenance) - set(new_state):
+        raise HTTPException(422, "baseline_provenance contains unknown state variable(s).")
+
+    old_identity = {k: old.get(k) for k in ("id", "manufacturer", "part_number", "serial_number", "installation_date")}
+    for prediction in db.list("predictions", {"component_id": component_id}):
+        if not prediction.get("component_identity_snapshot"):
+            prediction["component_identity_snapshot"] = old_identity
+            db.upsert("predictions", prediction)
+
+    now = now_iso()
+    new_component = copy.deepcopy(old)
+    for key in ("id", "created_at", "updated_at", "seq", "version_history", "flight_log", "committed_flights", "evidence_summary", "initialised_at"):
+        new_component.pop(key, None)
+    new_component.update({
+        "manufacturer": body.manufacturer or old.get("manufacturer", ""),
+        "part_number": body.part_number or old.get("part_number", ""),
+        "serial_number": body.new_serial_number,
+        "installation_date": replacement_date,
+        "parameters": params,
+        "state": new_state,
+        "baseline_state": copy.deepcopy(new_state),
+        "baseline_provenance": baseline_provenance,
+        "baseline_date": replacement_date,
+        "response_params": dict(DEFAULT_RESPONSE_PARAMS),
+        "model_version": 1,
+        "version_history": [],
+        "flight_log": [],
+        "committed_flights": [],
+        "history_initialised": False,
+        "history_initialisation_required": True,
+        "lifecycle_status": "active",
+        "replaces_component_id": component_id,
+        "replacement_reference": body.maintenance_reference,
+        "initial_condition": "Replacement component instance; baseline is reset and must be confirmed against inspection/manufacturer evidence before engineering use.",
+        "provenance": body.provenance,
+        "created_at": now,
+        "updated_at": now,
+    })
+    new_component.pop("id", None)
+    new_component = db.insert("components", new_component, "CMP")
+
+    # The API accepts a date, not a time. Treat the replacement as effective at
+    # the end of that UTC day so completed flights earlier on the date remain
+    # attributed to the removed serial-numbered component.
+    retired_at = f"{replacement_date}T23:59:59+00:00"
+    old.update({
+        "lifecycle_status": "retired",
+        "retired_on": replacement_date,
+        "retired_at": retired_at,
+        "retirement_reason": body.reason,
+        "retirement_reference": body.maintenance_reference,
+        "replaced_by_component_id": new_component["id"],
+        "updated_at": now,
+    })
+    db.upsert("components", old)
+
+    mnt = db.insert("maintenance", {
+        "component_id": component_id,
+        "aircraft_id": old.get("aircraft_id"),
+        "maintenance_date": replacement_date,
+        "event_time": retired_at,
+        "activity": f"Physical component removed and replaced by {new_component['id']} (S/N {body.new_serial_number})",
+        "repair_or_replacement": "replacement",
+        "damage_before": copy.deepcopy(old.get("state")),
+        "damage_after": None,
+        "maintenance_reference": body.maintenance_reference,
+        "notes": body.reason,
+        "provenance": body.provenance,
+        "applied_in_history": True,
+        "replacement_component_id": new_component["id"],
+    }, "mnt")
+
+    db.insert("component_identity_events", {
+        "component_id": component_id,
+        "related_component_id": new_component["id"],
+        "event_type": "component_retired",
+        "effective_date": replacement_date,
+        "event_time": retired_at,
+        "before_identity": old_identity,
+        "after_identity": {**old_identity, "lifecycle_status": "retired", "replaced_by_component_id": new_component["id"]},
+        "reason": body.reason,
+        "maintenance_reference": body.maintenance_reference,
+        "provenance": body.provenance,
+        "maintenance_id": mnt["id"],
+    }, "ide")
+    new_identity = {k: new_component.get(k) for k in ("id", "manufacturer", "part_number", "serial_number", "installation_date")}
+    db.insert("component_identity_events", {
+        "component_id": new_component["id"],
+        "related_component_id": component_id,
+        "event_type": "component_installed_as_replacement",
+        "effective_date": replacement_date,
+        "event_time": retired_at,
+        "before_identity": None,
+        "after_identity": new_identity,
+        "reason": body.reason,
+        "maintenance_reference": body.maintenance_reference,
+        "provenance": body.provenance,
+        "maintenance_id": mnt["id"],
+    }, "ide")
+    db.log_activity("component_replacement", f"Component {component_id} retired; new instance {new_component['id']} installed (S/N {body.new_serial_number}).", {"component_id": component_id, "replacement_component_id": new_component["id"], "maintenance_id": mnt["id"]})
+    return {"retired_component": get_component(component_id), "replacement_component": get_component(new_component["id"]), "maintenance": mnt}
 
 
 # ----------------------------------------------------------------- twin lifecycle
@@ -475,6 +692,8 @@ def create_maintenance(body: MaintenanceIn):
     comp = db.get("components", body.component_id)
     if comp is None:
         raise HTTPException(404, "Component not found")
+    if body.repair_or_replacement == "replacement":
+        raise HTTPException(409, "A physical replacement must create a new serial-numbered component instance. Use POST /api/components/{component_id}/replace.")
     doc = body.model_dump()
     apply = doc.pop("apply")
     doc.update({"aircraft_id": comp.get("aircraft_id"), "event_time": f"{body.maintenance_date}T15:00:00+00:00", "provenance": "manual", "applied_in_history": False})

@@ -139,6 +139,8 @@ export interface Prediction {
   reconciliation_id?: string
   as_flown?: { increments: Record<string, number>; state_after: Record<string, number>; threshold_status: ThresholdStatus }
   immutable: boolean
+  component_identity_snapshot?: { id: string; manufacturer?: string; part_number?: string; serial_number?: string; installation_date?: string | null }
+  reconciliation_status?: string
   created_at: string
 }
 
@@ -182,8 +184,13 @@ export interface TwinStatus {
   component_id: string
   aircraft_id: string
   history_initialised: boolean
-  evidence_summary: { completed_flights_with_observations: number; inspections: number; maintenance_records: number; applied_updates: number; rejected_updates: number; baseline_provenance: Record<string, string>; stage_a: boolean; stage_b: boolean } | null
-  data_availability: { observations: number; measured_channels: string[]; inspections: number; maintenance: number; predictions: number }
+  evidence_summary: {
+    completed_flights_with_observations: number; completed_flights_replayed?: number; completed_flights_without_sensor_observations?: number;
+    operational_records?: number; load_histories?: number; mapped_load_histories?: number;
+    inspections: number; maintenance_records: number; applied_updates: number; rejected_updates: number;
+    baseline_provenance: Record<string, string>; stage_a: boolean; stage_b: boolean
+  } | null
+  data_availability: { observations: number; measured_channels: string[]; operational_records?: number; load_histories?: number; mapped_load_histories?: number; inspections: number; maintenance: number; predictions: number }
   latest_inspection: Inspection | null
   next_scheduled_flight: Flight | null
   last_prediction: Prediction | null
@@ -198,6 +205,7 @@ export interface ComponentHistory {
   component_id: string
   aircraft_id: string
   baseline_state: Record<string, number>
+  identity_events?: ComponentIdentityEvent[]
   baseline_provenance: Record<string, string>
   baseline_date: string
   installation_date: string
@@ -210,6 +218,7 @@ export interface ComponentHistory {
   }[]
   load_histories: {
     id: string; event_time?: string | null; flight_id?: string | null; filename: string; provenance: string; label: string;
+    stress_basis?: 'not_mapped' | 'critical_net_section'; mapping_provenance?: string; mapping_note?: string;
     n_samples: number; samples: { t_s: number; stress_mpa: number }[];
     rainflow: { n_samples: number; n_cycles: number; max_range_mpa: number; bins: { stress_range_mpa: number; cycles: number; mean_stress_mpa: number }[] };
     automatic_twin_replay: boolean; replay_note: string
@@ -250,8 +259,29 @@ export interface Experiment {
   leakage_control: string
 }
 
+export interface ComponentIdentityEvent {
+  id: string
+  component_id: string
+  related_component_id?: string | null
+  event_type: 'identity_correction' | 'component_retired' | 'component_installed_as_replacement' | string
+  effective_date: string
+  event_time: string
+  before_identity: Record<string, string | null> | null
+  after_identity: Record<string, string | null> | null
+  changes?: Record<string, { before: string | null; after: string | null }>
+  reason: string
+  maintenance_reference: string
+  provenance: string
+}
+
 export interface ComponentSummary {
   id: string
+  lifecycle_status?: 'active' | 'retired'
+  retired_on?: string
+  retired_at?: string
+  retirement_reason?: string
+  replaced_by_component_id?: string
+  replaces_component_id?: string
   aircraft_id?: string
   position?: string
   component_type?: ModelType | null
@@ -661,6 +691,19 @@ export interface PHM2019Report {
   }
   method_note?: string
   provenance_note?: string
+  physics_paris_loo?: {
+    status: 'ready' | 'not_run'
+    reason?: string | null
+    summary?: { scored_points: number; mae_mm: number | null; rmse_mm: number | null }
+    by_specimen: {
+      specimen: string; status: string; labelled_points?: number; scored_points?: number
+      mae_mm?: number; rmse_mm?: number; fitted_parameters?: Record<string, number | string | string[]>
+      loading_profile?: string
+    }[]
+    predictions: { specimen: string; cycle: number; actual_mm: number; previous_observed_mm: number; paris_predicted_mm: number; cycle_interval: number; reached_numerical_guard: boolean }[]
+    method_note?: string
+    transfer_limit?: string
+  }
 }
 
 export interface ValidationReport {

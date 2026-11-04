@@ -1,6 +1,6 @@
 import { History, Pencil, Radio, Save, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import type { ComponentDetail, Parameter } from '../api/types'
 import { SeriesChart } from '../components/charts'
@@ -14,7 +14,12 @@ const MARGIN_TO_STATE: Record<string, string> = { margin_fatigue: 'miner_damage'
 
 export default function ComponentDetailPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  const [identityOpen, setIdentityOpen] = useState(false)
+  const [replacementOpen, setReplacementOpen] = useState(false)
+  const [identityDraft, setIdentityDraft] = useState({ effective_date: '2026-11-05', manufacturer: '', part_number: '', serial_number: '', reason: '', maintenance_reference: '' })
+  const [replacementDraft, setReplacementDraft] = useState({ replacement_date: '2026-11-05', new_serial_number: '', manufacturer: '', part_number: '', reason: '', maintenance_reference: '' })
   const tab = params.get('tab') === 'history' ? 'history' : 'twin'
   const { refreshKey, setSelectedComponentId, pushToast, bump } = useAppStore()
   const { data, error, loading, refetch } = useApi(() => api.component(id), [id, refreshKey])
@@ -26,6 +31,35 @@ export default function ComponentDetailPage() {
     const r = await api.initialiseTwin(id)
     bump()
     pushToast('success', `${id} initialised from its own history → model v${r.component.model_version}.`)
+  })
+  const changeIdentity = useAction(async () => {
+    const body = {
+      effective_date: identityDraft.effective_date,
+      reason: identityDraft.reason.trim(),
+      maintenance_reference: identityDraft.maintenance_reference.trim(),
+      ...(identityDraft.manufacturer.trim() ? { manufacturer: identityDraft.manufacturer.trim() } : {}),
+      ...(identityDraft.part_number.trim() ? { part_number: identityDraft.part_number.trim() } : {}),
+      ...(identityDraft.serial_number.trim() ? { serial_number: identityDraft.serial_number.trim() } : {}),
+    }
+    if (!body.manufacturer && !body.part_number && !body.serial_number) throw new Error('Change at least one identity field.')
+    await api.changeComponentIdentity(id, body)
+    pushToast('success', `Identity correction recorded for ${id}.`)
+    setIdentityOpen(false)
+    bump()
+  })
+  const replacePhysicalComponent = useAction(async () => {
+    const result = await api.replaceComponent(id, {
+      replacement_date: replacementDraft.replacement_date,
+      new_serial_number: replacementDraft.new_serial_number.trim(),
+      manufacturer: replacementDraft.manufacturer.trim() || undefined,
+      part_number: replacementDraft.part_number.trim() || undefined,
+      reason: replacementDraft.reason.trim(),
+      maintenance_reference: replacementDraft.maintenance_reference.trim(),
+    })
+    pushToast('success', `${id} retired; replacement ${result.replacement_component.id} created.`)
+    setReplacementOpen(false)
+    bump()
+    navigate(`/components/${result.replacement_component.id}?tab=history`)
   })
   if (loading && !data) return <Spinner label="Loading component…" />
   if (error) return <ErrorBox error={error} />
@@ -44,10 +78,39 @@ export default function ComponentDetailPage() {
     <div className="space-y-4">
       <PageHeader
         title={`${c.id} — ${c.name}`}
-        lede={<span>{c.aircraft_id} · {c.position} · {c.system} · P/N {c.part_number} · S/N {c.serial_number} · installed {c.installation_date} · {c.material} · <Tag kind={c.provenance} /> · model {c.model_type ? `${c.model_type} v${c.model_version}` : 'none (catalogue entry)'}</span>}
-        actions={c.model_type ? <>{!c.history_initialised && <button className="btn-secondary" onClick={() => initialise.run()} disabled={initialise.busy}><History size={14} /> {initialise.busy ? 'Replaying…' : 'Initialise from history'}</button>}<Link to="/predictions" className="btn-primary">Predict next flight</Link></> : undefined}
+        lede={<span>{c.aircraft_id} · {c.position} · {c.system} · P/N {c.part_number} · S/N {c.serial_number} · installed {c.installation_date} · {c.material} · <Tag kind={c.provenance} /> · {c.lifecycle_status === 'retired' ? <Tag kind="assumption">retired</Tag> : <Tag kind="uploaded">active instance</Tag>} · model {c.model_type ? `${c.model_type} v${c.model_version}` : 'none (catalogue entry)'}{c.replaced_by_component_id ? <> · replaced by <Link className="text-accent" to={`/components/${c.replaced_by_component_id}`}>{c.replaced_by_component_id}</Link></> : null}</span>}
+        actions={c.model_type ? <>{c.lifecycle_status !== 'retired' && <><button className="btn-secondary" onClick={() => { setIdentityDraft({ effective_date: new Date().toISOString().slice(0, 10), manufacturer: c.manufacturer ?? '', part_number: c.part_number ?? '', serial_number: c.serial_number ?? '', reason: '', maintenance_reference: '' }); setIdentityOpen(true) }}>Correct identity</button><button className="btn-secondary" onClick={() => { setReplacementDraft({ replacement_date: new Date().toISOString().slice(0, 10), new_serial_number: '', manufacturer: c.manufacturer ?? '', part_number: c.part_number ?? '', reason: '', maintenance_reference: '' }); setReplacementOpen(true) }}>Replace component</button>{!c.history_initialised && <button className="btn-secondary" onClick={() => initialise.run()} disabled={initialise.busy}><History size={14} /> {initialise.busy ? 'Replaying…' : 'Initialise from history'}</button>}<Link to="/predictions" className="btn-primary">Predict next flight</Link></>}</> : undefined}
       />
       <ErrorBox error={initialise.error} />
+      {identityOpen && (
+        <Card title="Audited component identity correction" subtitle="Use this for a verified catalogue/nameplate correction. A physical replacement must use the separate replacement operation.">
+          <div className="grid md:grid-cols-3 gap-3">
+            <Field label="Effective date"><input className="input" type="date" value={identityDraft.effective_date} onChange={(e) => setIdentityDraft({ ...identityDraft, effective_date: e.target.value })} /></Field>
+            <Field label="Manufacturer"><input className="input" value={identityDraft.manufacturer} onChange={(e) => setIdentityDraft({ ...identityDraft, manufacturer: e.target.value })} /></Field>
+            <Field label="Part number"><input className="input" value={identityDraft.part_number} onChange={(e) => setIdentityDraft({ ...identityDraft, part_number: e.target.value })} /></Field>
+            <Field label="Serial number"><input className="input" value={identityDraft.serial_number} onChange={(e) => setIdentityDraft({ ...identityDraft, serial_number: e.target.value })} /></Field>
+            <Field label="Maintenance / identity reference"><input className="input" value={identityDraft.maintenance_reference} onChange={(e) => setIdentityDraft({ ...identityDraft, maintenance_reference: e.target.value })} /></Field>
+            <Field label="Reason"><input className="input" value={identityDraft.reason} onChange={(e) => setIdentityDraft({ ...identityDraft, reason: e.target.value })} /></Field>
+          </div>
+          <ErrorBox error={changeIdentity.error} />
+          <div className="flex gap-2 mt-3"><button className="btn-primary" onClick={() => changeIdentity.run()} disabled={changeIdentity.busy}>{changeIdentity.busy ? 'Saving…' : 'Record identity correction'}</button><button className="btn-secondary" onClick={() => setIdentityOpen(false)}>Cancel</button></div>
+        </Card>
+      )}
+      {replacementOpen && (
+        <Card title="Retire this component and create a replacement instance" subtitle="The old serial number, predictions and historical damage state remain on the retired component ID. The replacement gets a new component ID, fresh state and model version 1.">
+          <div className="grid md:grid-cols-3 gap-3">
+            <Field label="Replacement installation date"><input className="input" type="date" value={replacementDraft.replacement_date} onChange={(e) => setReplacementDraft({ ...replacementDraft, replacement_date: e.target.value })} /></Field>
+            <Field label="New serial number"><input className="input" value={replacementDraft.new_serial_number} onChange={(e) => setReplacementDraft({ ...replacementDraft, new_serial_number: e.target.value })} /></Field>
+            <Field label="Manufacturer"><input className="input" value={replacementDraft.manufacturer} onChange={(e) => setReplacementDraft({ ...replacementDraft, manufacturer: e.target.value })} /></Field>
+            <Field label="Part number"><input className="input" value={replacementDraft.part_number} onChange={(e) => setReplacementDraft({ ...replacementDraft, part_number: e.target.value })} /></Field>
+            <Field label="Work order / reference"><input className="input" value={replacementDraft.maintenance_reference} onChange={(e) => setReplacementDraft({ ...replacementDraft, maintenance_reference: e.target.value })} /></Field>
+            <Field label="Replacement reason"><input className="input" value={replacementDraft.reason} onChange={(e) => setReplacementDraft({ ...replacementDraft, reason: e.target.value })} /></Field>
+          </div>
+          <Callout kind="warning">The replacement starts from the model's default damage state unless a measured baseline is provided through the API. Confirm the baseline from the installation inspection and OEM records before relying on predictions.</Callout>
+          <ErrorBox error={replacePhysicalComponent.error} />
+          <div className="flex gap-2 mt-3"><button className="btn-primary" onClick={() => replacePhysicalComponent.run()} disabled={replacePhysicalComponent.busy}>{replacePhysicalComponent.busy ? 'Creating replacement…' : 'Retire and create replacement'}</button><button className="btn-secondary" onClick={() => setReplacementOpen(false)}>Cancel</button></div>
+        </Card>
+      )}
       <div className="flex gap-1 border-b border-line">
         <button className={`px-3 py-1.5 text-[13px] border-b-2 ${tab === 'twin' ? 'border-accent text-ink font-medium' : 'border-transparent text-ink-2'}`} onClick={() => setParams({})}>Digital twin</button>
         <button className={`px-3 py-1.5 text-[13px] border-b-2 ${tab === 'history' ? 'border-accent text-ink font-medium' : 'border-transparent text-ink-2'}`} onClick={() => setParams({ tab: 'history' })}>Historical profile</button>
@@ -162,7 +225,7 @@ export default function ComponentDetailPage() {
             <>
               <Card title="Baseline at history start" subtitle={`${hist.data.baseline_date} · each value tagged with its origin`} dense>
                 <KV mono={false} rows={Object.entries(hist.data.baseline_state ?? {}).map(([k, v]) => ({ k: stateLabel(k).label, v: <span><span className="num">{fmtState(k, v)}</span> <span className="text-ink-3">— {hist.data!.baseline_provenance?.[k] ?? 'specification / default'}</span></span> }))} />
-                {c.history_initialised && c.evidence_summary && <div className="text-[12px] text-ink-2 mt-2">Twin initialised by chronological replay: {c.evidence_summary.completed_flights_with_observations} flights with observations, {c.evidence_summary.inspections} inspections, {c.evidence_summary.maintenance_records} maintenance records → {c.evidence_summary.applied_updates} applied updates, {c.evidence_summary.rejected_updates} not applied.</div>}
+                {c.history_initialised && c.evidence_summary && <div className="text-[12px] text-ink-2 mt-2">Chronological replay: {c.evidence_summary.completed_flights_replayed ?? c.evidence_summary.completed_flights_with_observations} completed flights ({c.evidence_summary.completed_flights_with_observations} with sensor observations, {c.evidence_summary.completed_flights_without_sensor_observations ?? 0} without sensors), {c.evidence_summary.operational_records ?? 0} operational summaries, {c.evidence_summary.load_histories ?? 0} stress histories, {c.evidence_summary.inspections} inspections and {c.evidence_summary.maintenance_records} maintenance records.</div>}
               </Card>
               <Card title="Historical sensor observations" subtitle={`${hist.data.observations.length} flights · measured: ${hist.data.measured_quantities.map((k) => CHANNEL_LABELS[k] ?? k).join(', ') || '—'} · unavailable: ${hist.data.unavailable_quantities.map((k) => CHANNEL_LABELS[k] ?? k).join(', ') || '—'}`} dense>
                 {hist.data.observations.length === 0 ? <div className="text-[12px] text-ink-3">No observation records for this instance.</div> : (
@@ -180,27 +243,34 @@ export default function ComponentDetailPage() {
                 )}
               </Card>
               <div className="grid xl:grid-cols-2 gap-4">
-                <Card title="Uploaded operational summary records" subtitle="Traceable per-component operating history; these summaries are not sensor observations and are not silently replayed as flights." dense>
+                <Card title="Uploaded operational summary records" subtitle="Linked summaries feed as-flown conditions during chronological replay; unlinked records remain traceable but are excluded." dense>
                   {(hist.data.operational_records ?? []).length === 0 ? <div className="text-[12px] text-ink-3">No operational summaries uploaded.</div> : (
                     <div className="overflow-x-auto"><table className="table text-[12px]"><thead><tr><th>Date</th><th>Flight ID</th><th>Duration</th><th>Landing cycles</th><th>Load factor</th><th>Max temp.</th><th>Environment</th><th>Source</th></tr></thead>
-                      <tbody>{(hist.data.operational_records ?? []).map((r) => <tr key={r.id}><td className="num">{r.operational_date}</td><td className="num">{r.flight_id ?? 'unlinked'}</td><td className="num">{r.conditions.duration_min ?? '—'} min</td><td className="num">{r.conditions.landing_cycles ?? '—'}</td><td className="num">{r.conditions.load_factor ?? '—'}</td><td className="num">{r.conditions.max_temperature_c ?? '—'} °C</td><td>{r.environment ?? '—'}</td><td><Tag kind={r.provenance} /> <span className="text-ink-3">{r.source}</span></td></tr>)}</tbody></table></div>
+                      <tbody>{(hist.data.operational_records ?? []).map((r) => <tr key={r.id}><td className="num">{r.operational_date}</td><td className="num">{r.flight_id ?? 'unlinked'}</td><td className="num">{r.conditions.duration_min ?? '—'} min</td><td className="num">{r.conditions.landing_cycles ?? '—'}</td><td className="num">{r.conditions.load_factor ?? '—'}</td><td className="num">{r.conditions.temperature_c ?? '—'} °C</td><td>{r.environment ?? '—'}</td><td><Tag kind={r.provenance} /> {r.automatic_twin_replay ? <Tag kind="uploaded">replay input</Tag> : <Tag kind="assumption">not linked</Tag>} <span className="text-ink-3">{r.source}</span></td></tr>)}</tbody></table></div>
                   )}
-                  <div className="text-[10.5px] text-ink-3 mt-2">A linked flight ID is a traceability reference only. Stage A calibration still requires actual channel observations attached to the completed flight.</div>
+                  <div className="text-[10.5px] text-ink-3 mt-2">When linked to the component's completed flight, supplied duration, load factor, load variation, manoeuvre, temperature, pressure, vibration, intensity and environment are used by the as-flown physical step. They do not create sensor residuals; Stage A calibration still requires measured channel observations.</div>
                 </Card>
-                <Card title="Uploaded stress time histories" subtitle="Original ordered MPa samples and rainflow summaries are retained for engineering review." dense>
+                <Card title="Uploaded stress time histories" subtitle="Original MPa samples and rainflow summaries are retained. Only a linked engine-mount critical-net-section declaration is fed to the crack-growth step." dense>
                   {(hist.data.load_histories ?? []).length === 0 ? <div className="text-[12px] text-ink-3">No load-history traces uploaded.</div> : (
                     <div className="space-y-3">
                       {(hist.data.load_histories ?? []).map((r) => (
                         <div key={r.id} className="border border-line rounded p-2">
-                          <div className="flex flex-wrap justify-between gap-2 text-[11.5px] mb-1"><span className="font-medium">{r.filename} · {r.flight_id ?? 'not linked to a flight'}</span><span className="num">{r.n_samples} samples · {fmt.num(r.rainflow.n_cycles, 1)} rainflow cycles · max range {fmt.num(r.rainflow.max_range_mpa, 1)} MPa</span></div>
+                          <div className="flex flex-wrap justify-between gap-2 text-[11.5px] mb-1"><span className="font-medium">{r.filename} · {r.flight_id ?? 'not linked to a flight'} · {r.stress_basis ?? 'not_mapped'}</span><span className="num">{r.n_samples} samples · {fmt.num(r.rainflow.n_cycles, 1)} rainflow cycles · max range {fmt.num(r.rainflow.max_range_mpa, 1)} MPa · {r.automatic_twin_replay ? 'used in as-flown physics' : 'archived only'}</span></div>
                           <SeriesChart data={r.samples.map((s) => ({ time_s: s.t_s, stress_mpa: s.stress_mpa }))} xKey="time_s" series={[{ key: 'stress_mpa', name: 'stress', color: '#38bdf8' }]} title="Preserved stress trace" unitNote="MPa" height={145} />
                         </div>
                       ))}
                     </div>
                   )}
-                  <div className="text-[10.5px] text-ink-3 mt-2">The trace is preserved, but it is not automatically applied to the component's damage state: an approved mapping from this stress channel to the component's geometry/load path is required.</div>
+                  <div className="text-[10.5px] text-ink-3 mt-2">A critical_net_section declaration is user-supplied and only enables replay for engine_mount; it is not an independent validation of the strain-to-stress transfer, net-section geometry or local stress concentration. Other traces remain archived only.</div>
                 </Card>
               </div>
+              <Card title="Audited component identity lifecycle" subtitle="Identity corrections and physical replacements are recorded separately from the damage/operating model history." dense>
+                {(hist.data.identity_events ?? []).length === 0 ? <div className="text-[12px] text-ink-3">No identity corrections or replacements recorded.</div> : (
+                  <div className="overflow-x-auto"><table className="table text-[12px]"><thead><tr><th>Date</th><th>Event</th><th>Old serial</th><th>New serial</th><th>Reference</th><th>Reason</th></tr></thead><tbody>
+                    {(hist.data.identity_events ?? []).map((event) => <tr key={event.id}><td className="num">{event.effective_date}</td><td>{event.event_type}</td><td className="num">{event.before_identity?.serial_number ?? '—'}</td><td className="num">{event.after_identity?.serial_number ?? '—'}</td><td className="num">{event.maintenance_reference}</td><td>{event.reason}</td></tr>)}
+                  </tbody></table></div>
+                )}
+              </Card>
               <div className="grid xl:grid-cols-2 gap-4">
                 <Card title="Inspection records" dense>
                   {hist.data.inspections.length === 0 ? <div className="text-[12px] text-ink-3">None.</div> : (

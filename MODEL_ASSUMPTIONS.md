@@ -75,3 +75,20 @@ Sample cap: samples × flights ≤ 60 000. Intervals are sample percentiles, not
 ## 8. Review criteria used for the "engineering review" status
 
 Threshold crossed, or minimum margin < 25 %, or governing remaining life < 100 flights of the reference mission. These are prototype display thresholds, not maintenance criteria.
+
+
+## 6. Operational-response and stress-history fidelity boundary
+
+The mission-to-stress conversion in engine/response.py uses the phase table and the component's illustrative reference load/effective area. It is a reduced-order engineering approximation, not a finite-element solution. It has no mesh, contact/fastener representation, spatial stress field, calibrated local stress concentration, or demonstrated correspondence to flight-test strain gauges. The numerical relation sigma_ref = F_ref/A_eff is an assumed nominal section stress; it is not a substitute for a geometry-resolved stress analysis.
+
+A user-uploaded load_history CSV is preserved in sample order with t_s in seconds and stress_mpa in MPa, alongside its rainflow bins. The optional stress_basis field has two values:
+- not_mapped — default. Preserve and plot the trace; do not apply it to component damage.
+- critical_net_section — explicit user declaration. Currently accepted only for an engine_mount record linked to a completed flight. The measured stress trace replaces the generated rainflow bins and peak stress in the as-flown engine-mount physical step for that one flight. The declaration remains user_declared; AeroSim does not independently verify sensor location, net-section geometry, bending contribution, local concentration, temperature correction or load-path mapping.
+
+The PHM 2019 benchmark is a laboratory aluminum lap-joint test. Its fitted Paris parameters are experiment-specific and are not transferred to any aircraft component. A leave-one-specimen-out comparison can assess the integrate_paris numerical method on those coupons, but does not validate the illustrative titanium-class engine-mount parameters listed in §5.
+
+## 7. Component identity and replacement assumptions
+
+A manufacturer/part/serial correction is an audited identity correction, not a replacement. It records before/after identity, effective date, reason, provenance and maintenance reference. Predictions retain the identity snapshot available when they were created.
+
+A physical replacement retires the old component instance and creates a new component ID with a new serial number, installation date, model version 1, response priors and baseline state. The baseline defaults to the model's default state unless measured values and their provenance are supplied. The UI explicitly warns that the new baseline must be verified against inspection and OEM records. The retired component's historical predictions and accumulated state remain attached to the retired ID. The date-only replacement event is treated as effective at the end of the stated UTC date so flights earlier that day remain attributed to the removed item.

@@ -166,6 +166,28 @@ class ComponentIn(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class ComponentIdentityChangeIn(BaseModel):
+    effective_date: str
+    manufacturer: str | None = Field(default=None, max_length=120)
+    part_number: str | None = Field(default=None, max_length=120)
+    serial_number: str | None = Field(default=None, min_length=1, max_length=120)
+    reason: str = Field(min_length=8, max_length=500)
+    maintenance_reference: str = Field(min_length=1, max_length=120)
+    provenance: Literal["manual", "uploaded"] = "manual"
+
+
+class ComponentReplacementIn(BaseModel):
+    replacement_date: str
+    new_serial_number: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=8, max_length=500)
+    maintenance_reference: str = Field(min_length=1, max_length=120)
+    manufacturer: str | None = Field(default=None, max_length=120)
+    part_number: str | None = Field(default=None, max_length=120)
+    baseline_state: dict[str, float] | None = None
+    baseline_provenance: dict[str, str] | None = None
+    provenance: Literal["manual", "uploaded"] = "manual"
+
+
 class SettingsIn(BaseModel):
     mc_samples: int | None = Field(default=None, ge=10, le=5000)
     rls_forgetting_factor: float | None = Field(default=None, gt=0.5, le=1.0)

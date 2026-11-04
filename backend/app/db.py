@@ -34,6 +34,7 @@ COLLECTIONS = [
     "imports",
     "operational_records",
     "load_histories",
+    "component_identity_events",
 ]
 
 

@@ -14,6 +14,9 @@ import numpy as np
 import pandas as pd
 
 from ..config import REPO_DIR
+from ..engine.base import StressBin
+from ..engine.crack_growth import integrate_paris
+from ..engine.fatigue import rainflow_bins
 
 DATA_DIR = REPO_DIR / "data" / "external" / "phm2019"
 NASA_DATASET_URL = "https://data.nasa.gov/dataset/fatigue-crack-growth-in-aluminum-lap-joint"
@@ -65,7 +68,7 @@ def _validate_labels(frame: pd.DataFrame, source: str) -> list[dict[str, Any]]:
             continue
         if not np.isfinite(cycle) or not np.isfinite(crack):
             continue
-        if cycle <= 0 or crack < 0:
+        if cycle < 0 or crack < 0:
             raise ValueError(f"{source} row {idx + 2}: cycle must be positive and crack length non-negative.")
         rows.append({"specimen": specimen, "cycle": int(round(cycle)), "crack_length_mm": crack})
 
@@ -114,7 +117,7 @@ def _labels_from_workbooks(root: Path) -> tuple[list[dict[str, Any]], list[str]]
                         crack = float(record.iloc[crack_idx])
                     except (TypeError, ValueError, IndexError):
                         continue
-                    if np.isfinite(cycle) and np.isfinite(crack) and cycle > 0 and crack >= 0:
+                    if np.isfinite(cycle) and np.isfinite(crack) and cycle >= 0 and crack >= 0:
                         rows.append({"specimen": specimen, "cycle": int(round(cycle)), "crack_length_mm": crack})
                 found = True
                 break
@@ -258,6 +261,239 @@ def _rolling_origin(labels: list[dict[str, Any]]) -> dict[str, Any]:
     return {"summary": summary, "by_specimen": by_specimen, "predictions": predictions}
 
 
+
+def _loading_profile(root: Path, specimen: str) -> dict[str, Any] | None:
+    candidates = [
+        path for path in root.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in {".csv", ".txt"}
+        and "loading" in path.name.lower()
+        and "profile" in path.name.lower()
+    ]
+    exact = [p for p in candidates if specimen.upper() in {part.upper() for part in p.parts}]
+    selected = exact or candidates
+    if not selected:
+        return None
+    path = sorted(selected, key=lambda p: (0 if specimen.upper() in {part.upper() for part in p.parts} else 1, len(p.parts), str(p)))[0]
+    try:
+        frame = pd.read_csv(path, header=None, sep=None, engine="python")
+        numeric = frame.apply(pd.to_numeric, errors="coerce")
+        valid_columns = [i for i in range(numeric.shape[1]) if numeric.iloc[:, i].notna().sum() >= 3]
+        if len(valid_columns) < 2:
+            return None
+        # PHM challenge documentation: column 1 is time and column 2 is applied stress (MPa).
+        stress = numeric.iloc[:, valid_columns[1]].dropna().to_numpy(dtype=float)
+        if len(stress) < 3 or not np.isfinite(stress).all():
+            return None
+        bins = rainflow_bins(stress.tolist())
+        total_cycles = float(sum(b.cycles for b in bins))
+        if total_cycles <= 0:
+            return None
+        return {
+            "path": str(path),
+            "stress_mpa": stress,
+            "bins": bins,
+            "profile_cycles": total_cycles,
+            "max_stress_mpa": float(max(np.max(stress), 0.0)),
+            "min_stress_mpa": float(np.min(stress)),
+        }
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _fit_paris_parameters(
+    labels: list[dict[str, Any]],
+    profiles: dict[str, dict[str, Any]],
+    exclude_specimen: str,
+    geometry_factor_y: float = 1.12,
+) -> dict[str, Any] | None:
+    training = [row for row in labels if row["specimen"] != exclude_specimen]
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in training:
+        grouped.setdefault(row["specimen"], []).append(row)
+
+    m = 3.0
+    fitted_points: list[tuple[float, float]] = []
+    for _ in range(5):
+        fitted_points = []
+        for specimen, history in grouped.items():
+            profile = profiles.get(specimen)
+            if profile is None:
+                continue
+            history = sorted(history, key=lambda row: row["cycle"])
+            bins = profile["bins"]
+            cycles = profile["profile_cycles"]
+            equivalent_range = (
+                sum(b.cycles * (b.stress_range ** m) for b in bins) / cycles
+            ) ** (1.0 / m)
+            for previous, current in zip(history, history[1:]):
+                a0 = float(previous["crack_length_mm"])
+                a1 = float(current["crack_length_mm"])
+                delta_n = float(current["cycle"] - previous["cycle"])
+                # Paris region-II propagation is not used to model crack initiation from a=0.
+                if a0 <= 0 or a1 <= a0 or delta_n <= 0:
+                    continue
+                a_mid_m = 0.5 * (a0 + a1) * 1e-3
+                delta_k = geometry_factor_y * equivalent_range * np.sqrt(np.pi * a_mid_m)
+                da_dn = (a1 - a0) * 1e-3 / delta_n
+                if delta_k > 0 and da_dn > 0:
+                    fitted_points.append((float(np.log(delta_k)), float(np.log(da_dn))))
+
+        if len(fitted_points) < 4:
+            return None
+        x = np.array([p[0] for p in fitted_points], dtype=float)
+        y = np.array([p[1] for p in fitted_points], dtype=float)
+        slope, intercept = np.polyfit(x, y, 1)
+        if not np.isfinite(slope) or slope <= 0:
+            return None
+        m = float(slope)
+        c = float(np.exp(intercept))
+        if not np.isfinite(c) or c <= 0:
+            return None
+
+    return {
+        "paris_C_m_per_cycle_per_MPa_sqrt_m_pow_m": c,
+        "paris_m": m,
+        "geometry_factor_Y_assumed": geometry_factor_y,
+        "delta_K_threshold_MPa_sqrt_m_assumed": 0.0,
+        "stress_ratio_R_assumed": 0.0,
+        "fit_intervals": len(fitted_points),
+        "training_specimens": sorted(grouped),
+    }
+
+
+def _paris_leave_one_specimen_out(labels: list[dict[str, Any]], root: Path) -> dict[str, Any]:
+    """Fit Paris C,m on five labelled specimens and score the held-out sixth with the engine integrator."""
+    profiles = {
+        specimen: _loading_profile(root, specimen)
+        for specimen in sorted({row["specimen"] for row in labels})
+    }
+    missing_profiles = [specimen for specimen, profile in profiles.items() if profile is None]
+    if missing_profiles:
+        return {
+            "status": "not_run",
+            "reason": "A PHM training loading-profile file could not be parsed for: " + ", ".join(missing_profiles),
+            "scored_points": 0,
+            "by_specimen": [],
+            "predictions": [],
+        }
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in labels:
+        grouped.setdefault(row["specimen"], []).append(row)
+
+    folds: list[dict[str, Any]] = []
+    predictions: list[dict[str, Any]] = []
+    for held_out, history in sorted(grouped.items()):
+        fitted = _fit_paris_parameters(labels, profiles, held_out)
+        if fitted is None:
+            folds.append({"specimen": held_out, "status": "not_fit", "reason": "Too few positive-growth training intervals for a stable log-linear Paris fit."})
+            continue
+
+        profile = profiles[held_out]
+        history = sorted(history, key=lambda row: row["cycle"])
+        positive = [i for i, row in enumerate(history) if row["crack_length_mm"] > 0]
+        if not positive:
+            folds.append({"specimen": held_out, "status": "not_scored", "reason": "No optical crack-length point above zero; Paris region-II scoring cannot start from a=0."})
+            continue
+        start = positive[0]
+        fold_predictions: list[dict[str, Any]] = []
+        sigma_guard = max(profile["max_stress_mpa"], 1.0)
+        max_observed_m = max(row["crack_length_mm"] for row in history) * 1e-3
+        # A deliberately non-governing numerical cap: the challenge archive does not provide a transferable K_IC value.
+        k_ic_guard = max(1.0e4, 10.0 * 1.12 * sigma_guard * np.sqrt(np.pi * max_observed_m))
+
+        for index in range(start + 1, len(history)):
+            previous, target = history[index - 1], history[index]
+            delta_n = int(target["cycle"] - previous["cycle"])
+            if delta_n <= 0 or float(target["crack_length_mm"]) <= float(previous["crack_length_mm"]):
+                continue
+            scale = delta_n / profile["profile_cycles"]
+            bins = [
+                StressBin(
+                    stress_range=float(b.stress_range),
+                    cycles=float(b.cycles) * scale,
+                    mean_stress=float(b.mean_stress),
+                    label=f"PHM loading profile · {b.label}",
+                )
+                for b in profile["bins"]
+            ]
+            result = integrate_paris(
+                a0_m=float(previous["crack_length_mm"]) * 1e-3,
+                bins=bins,
+                C=fitted["paris_C_m_per_cycle_per_MPa_sqrt_m_pow_m"],
+                m=fitted["paris_m"],
+                Y=fitted["geometry_factor_Y_assumed"],
+                delta_K_th=fitted["delta_K_threshold_MPa_sqrt_m_assumed"],
+                K_IC=float(k_ic_guard),
+                sigma_max_mpa=float(profile["max_stress_mpa"]),
+                stress_ratio_R=fitted["stress_ratio_R_assumed"],
+            )
+            entry = {
+                "specimen": held_out,
+                "cycle": int(target["cycle"]),
+                "actual_mm": float(target["crack_length_mm"]),
+                "previous_observed_mm": float(previous["crack_length_mm"]),
+                "paris_predicted_mm": float(result["a_final_m"] * 1e3),
+                "cycle_interval": delta_n,
+                "reached_numerical_guard": bool(result["reached_critical"]),
+            }
+            predictions.append(entry)
+            fold_predictions.append(entry)
+
+        if fold_predictions:
+            actual = np.array([p["actual_mm"] for p in fold_predictions], dtype=float)
+            predicted = np.array([p["paris_predicted_mm"] for p in fold_predictions], dtype=float)
+            folds.append({
+                "specimen": held_out,
+                "status": "scored",
+                "labelled_points": len(history),
+                "scored_points": len(fold_predictions),
+                "mae_mm": float(np.mean(np.abs(actual - predicted))),
+                "rmse_mm": float(np.sqrt(np.mean(np.square(actual - predicted)))),
+                "fitted_parameters": fitted,
+                "loading_profile": Path(profile["path"]).name,
+                "profile_cycles_in_trace": float(profile["profile_cycles"]),
+            })
+        else:
+            folds.append({"specimen": held_out, "status": "not_scored", "reason": "No positive crack-growth interval after the first non-zero optical measurement.", "fitted_parameters": fitted})
+
+    if predictions:
+        actual = np.array([p["actual_mm"] for p in predictions], dtype=float)
+        predicted = np.array([p["paris_predicted_mm"] for p in predictions], dtype=float)
+        summary = {
+            "scored_points": len(predictions),
+            "mae_mm": float(np.mean(np.abs(actual - predicted))),
+            "rmse_mm": float(np.sqrt(np.mean(np.square(actual - predicted)))),
+        }
+        status = "ready"
+        reason = None
+    else:
+        summary = {"scored_points": 0, "mae_mm": None, "rmse_mm": None}
+        status = "not_run"
+        reason = "No held-out specimen produced a valid positive crack-growth forecast."
+    return {
+        "status": status,
+        "reason": reason,
+        "summary": summary,
+        "by_specimen": folds,
+        "predictions": predictions,
+        "method_note": (
+            "Leave-one-specimen-out validation: Paris C and m are fitted on the other training specimens, "
+            "then the held-out specimen is forecast sequentially from its previous optical crack measurement. "
+            "The PHM loading profile is repeated to match each cycle interval and evaluated by AeroSim's "
+            "integrate_paris implementation. Zero-crack initiation intervals are excluded. Y=1.12, R=0, "
+            "and ΔK_th=0 are stated assumptions; K_IC is a high numerical guard, not a measured material property."
+        ),
+        "transfer_limit": (
+            "This validates the crack-growth integration method on aluminum lap-joint coupons only. "
+            "It does not validate the titanium-class engine-mount material, geometry, load path, S-N curve, "
+            "critical stress or component-life predictions."
+        ),
+    }
+
+
+
 def build_report(data_dir: Path | str | None = None) -> dict[str, Any]:
     root = Path(data_dir) if data_dir is not None else DATA_DIR
     labels_file = root / "labels.csv"
@@ -293,6 +529,7 @@ def build_report(data_dir: Path | str | None = None) -> dict[str, Any]:
 
     signal_report = _signals(root, labels)
     rolling = _rolling_origin(labels)
+    paris_loo = _paris_leave_one_specimen_out(labels, root)
     return {
         "status": "ready", "dataset": "PHM 2019 Fatigue Crack Growth in Aluminum Lap Joint",
         "data_directory": str(root), "labels_source": labels_source,
@@ -301,8 +538,8 @@ def build_report(data_dir: Path | str | None = None) -> dict[str, Any]:
             {"specimen": specimen, "points": sum(1 for r in labels if r["specimen"] == specimen)}
             for specimen in sorted({r["specimen"] for r in labels})
         ],
-        "signal_features": signal_report, "rolling_origin": rolling, "warnings": warnings,
-        "method_note": "Within-specimen rolling-origin one-step-ahead validation. Each forecast uses only earlier crack-length labels from the same specimen. Comparators are last-value carry-forward and a monotone-clipped linear trend; this is not a calibrated Paris-law model or a remaining-life validation.",
+        "signal_features": signal_report, "rolling_origin": rolling, "physics_paris_loo": paris_loo, "warnings": warnings,
+        "method_note": "Within-specimen rolling-origin one-step-ahead baseline comparison (last value and monotone-clipped linear trend), plus a leave-one-specimen-out Paris-law test implemented with AeroSim crack_growth.integrate_paris. These are crack-growth method benchmarks, not remaining-life-to-failure validations.",
         "provenance_note": "Experimental aluminum lap-joint coupon data. Not aircraft flight telemetry and not a direct validation of AeroSim aircraft component models.",
         "source_url": NASA_DATASET_URL, "challenge_url": PHM_CHALLENGE_URL,
     }
