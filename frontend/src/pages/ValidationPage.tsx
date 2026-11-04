@@ -25,7 +25,7 @@ export default function ValidationPage() {
       <PageHeader title="Validation" lede="Actual results of the backend test-suite (pytest, run on request) and a chronological, flight-by-flight experiment on the selected component's own completed flights: Model A (static physics), Model B (operationally calibrated), Model C (two-stage with inspection evidence) and C-sparse (only the first inspection), all measured against the hidden reference that generated the observations. Nothing on this page is hard-coded." actions={<><Field label="Component instance"><select className="input w-[300px]" value={selectedComponentId} onChange={(e) => setSelectedComponentId(e.target.value)}>{(comps.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.id}</option>)}</select></Field><button className="btn-secondary mt-4" onClick={() => { setForce(true); refetch() }} disabled={loading}><RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Re-run tests</button></>} />
       {loading && !data && <Spinner label="Running the test-suite and the chronological experiment…" />}
       <ErrorBox error={error} />
-      <PHMBenchmark report={phm.data} loading={phm.loading} error={phm.error} onRefresh={phm.refetch} />
+      <PHMBenchmark report={phm.data ?? undefined} loading={phm.loading} error={phm.error} onRefresh={phm.refetch} />
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -113,7 +113,7 @@ function PHMBenchmark({ report, loading, error, onRefresh }: {
       subtitle="Independent crack-growth validation using optical measurements; never mixed with synthetic aircraft flights."
       actions={<button className="btn-secondary" onClick={onRefresh} disabled={loading}><RefreshCw size={13} className={loading ? 'animate-spin' : ''} /> Refresh dataset</button>}>
       {loading && !report && <Spinner label="Checking the local PHM dataset folder…" />}
-      {error && <ErrorBox error={error} />}
+      {Boolean(error) && <ErrorBox error={error} />}
       {report?.status === 'not_ready' && (
         <Callout kind="warning" title="Dataset files not detected">
           <div className="space-y-2">

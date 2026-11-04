@@ -86,7 +86,7 @@ def _validate_labels(frame: pd.DataFrame, source: str) -> list[dict[str, Any]]:
 def _labels_from_workbooks(root: Path) -> tuple[list[dict[str, Any]], list[str]]:
     rows: list[dict[str, Any]] = []
     warnings: list[str] = []
-    candidates = sorted(root.rglob("Description_T*.xlsx")) + sorted(root.rglob("Description_T*.xlsm"))
+    candidates = sorted(root.rglob("Description_T*.xlsx")) + sorted(root.rglob("Description_T*.xlsm")) + sorted(root.rglob("Description_T*.xls"))
     for path in candidates:
         match = re.search(r"Description_(T[1-8])", path.stem, re.IGNORECASE)
         if not match:
@@ -95,7 +95,7 @@ def _labels_from_workbooks(root: Path) -> tuple[list[dict[str, Any]], list[str]]
         if specimen not in TRAINING_SPECIMENS:
             continue
         try:
-            sheets = pd.read_excel(path, sheet_name=None, header=None, engine="openpyxl")
+            sheets = pd.read_excel(path, sheet_name=None, header=None, engine="xlrd" if path.suffix.lower() == ".xls" else "openpyxl")
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"Could not read {path.name}: {exc}")
             continue
