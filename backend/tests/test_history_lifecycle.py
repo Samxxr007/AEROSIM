@@ -187,4 +187,4 @@ def test_maintenance_csv_cannot_replace_a_physical_component_in_place(client):
     report = response.json()
     assert report["ok"] is False
     assert any("new component ID" in problem for problem in report["problems"])
-    assert client.get("/api/components/ENG-MOUNT-001").json()["lifecycle_status"] != "retired"
+    assert client.get("/api/components/ENG-MOUNT-001").json().get("lifecycle_status", "active") == "active"

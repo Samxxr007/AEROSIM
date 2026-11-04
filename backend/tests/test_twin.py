@@ -104,12 +104,15 @@ def test_maintenance_repair_resets_state_in_replay(db):
     assert any(u["evidence"].get("type") == "maintenance" and u["applied"] for u in ups)
 
 
-def test_maintenance_replacement_resets_to_new_state(db_init):
+def test_maintenance_replacement_requires_a_new_component_instance(db_init):
+    before = db_init.get("components", CID)
     rec = db_init.insert("maintenance", {"component_id": CID, "aircraft_id": "AIRCRAFT-001", "maintenance_date": "2026-11-10", "event_time": "2026-11-10T15:00:00+00:00", "activity": "Lug replaced", "repair_or_replacement": "replacement", "damage_before": None, "damage_after": {"crack_length_m": 0.0}, "maintenance_reference": "WO-1", "provenance": "manual", "applied_in_history": False})
-    res = apply_maintenance(db_init, rec["id"])
-    assert res["component"]["state"]["crack_length_m"] == 0.0
-    assert res["component"]["state"]["miner_damage"] == 0.0
-    assert res["component"]["response_params"]["load_transfer_factor"] == 1.0
+    with pytest.raises(EngineError, match="creates a new component instance"):
+        apply_maintenance(db_init, rec["id"])
+    after = db_init.get("components", CID)
+    assert after["state"] == before["state"]
+    assert after["serial_number"] == before["serial_number"]
+    assert after.get("lifecycle_status", "active") == "active"
 
 
 def test_twin_status_dashboard_fields(db_init):
