@@ -1,0 +1,13 @@
+component_id,flight_date,duration_min,landing_cycles,load_factor,max_temperature_c,environment,notes
+ENG-MOUNT-001,2026-08-03,121.6,1,0.9982,79.4,benign,synthetic revenue flight AC001-F0001
+ENG-MOUNT-001,2026-08-07,96.2,1,0.9756,93.7,marine,synthetic revenue flight AC001-F0002
+ENG-MOUNT-001,2026-08-11,151.7,1,0.9999,87.2,humid,synthetic revenue flight AC001-F0003
+ENG-MOUNT-001,2026-08-18,113.9,1,1.0147,77.8,benign,synthetic revenue flight AC001-F0004
+ENG-MOUNT-001,2026-08-24,98.0,1,1.0064,84.2,marine,synthetic revenue flight AC001-F0005
+ENG-MOUNT-001,2026-08-30,144.0,1,1.0962,86.0,humid,synthetic revenue flight AC001-F0006
+ENG-MOUNT-001,2026-09-05,132.1,1,1.0253,78.4,benign,synthetic revenue flight AC001-F0007
+ENG-MOUNT-001,2026-09-14,95.1,1,1.0473,88.9,marine,synthetic revenue flight AC001-F0008
+ENG-MOUNT-001,2026-09-22,134.8,1,0.9637,88.6,humid,synthetic revenue flight AC001-F0009
+ENG-MOUNT-001,2026-10-01,122.6,1,0.9967,71.3,benign,synthetic revenue flight AC001-F0010
+ENG-MOUNT-001,2026-10-12,89.2,1,1.0101,85.5,marine,synthetic revenue flight AC001-F0011
+ENG-MOUNT-001,2026-10-28,153.9,1,1.0657,86.2,humid,synthetic revenue flight AC001-F0012

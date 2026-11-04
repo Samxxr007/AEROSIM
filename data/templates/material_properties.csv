@@ -1,0 +1,3 @@
+component_id,parameter,value,unit,provenance,source
+ENG-MOUNT-001,paris_C,1.2e-11,m/cycle/(MPa√m)^m,catalogue,material datasheet (illustrative)
+ENG-MOUNT-001,K_IC,70.0,MPa√m,catalogue,material datasheet (illustrative)

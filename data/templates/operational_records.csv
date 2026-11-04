@@ -1,0 +1,2 @@
+component_id,flight_date,duration_min,landing_cycles,load_factor,max_temperature_c,environment,notes
+ENG-MOUNT-001,2026-10-02,118,1,1.0,72,benign,revenue flight

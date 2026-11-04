@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/.pytest_junit.xml
+backend/aerosim.db
+backend/*.db
+.venv/
+venv/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/node_modules/.tmp/
+
+# Env / OS
+.env
+.DS_Store

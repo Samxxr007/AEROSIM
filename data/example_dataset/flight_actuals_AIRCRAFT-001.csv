@@ -1,0 +1,13 @@
+flight_id,duration_min,landing_cycles,load_factor,load_variation,manoeuvre_intensity,temperature_c,pressure_factor,vibration_level,environment,operating_intensity,source
+AC001-F0001,121.6,1,0.9982,0.13,1.181,19.4,0.9495,1.062,benign,1.0071,flight-data-recorder summary (synthetic)
+AC001-F0002,96.2,1,0.9756,0.091,1.237,33.7,1.0082,0.961,marine,1.1747,flight-data-recorder summary (synthetic)
+AC001-F0003,151.7,1,0.9999,0.131,0.78,27.2,0.9728,0.975,humid,1.019,flight-data-recorder summary (synthetic)
+AC001-F0004,113.9,1,1.0147,0.154,1.209,17.8,1.0251,0.963,benign,1.0071,flight-data-recorder summary (synthetic)
+AC001-F0005,98.0,1,1.0064,0.118,1.366,24.2,0.9926,0.934,marine,1.1206,flight-data-recorder summary (synthetic)
+AC001-F0006,144.0,1,1.0962,0.087,0.699,26.0,0.998,0.949,humid,0.9662,flight-data-recorder summary (synthetic)
+AC001-F0007,132.1,1,1.0253,0.128,0.793,18.4,1.0178,1.029,benign,0.9944,flight-data-recorder summary (synthetic)
+AC001-F0008,95.1,1,1.0473,0.12,1.585,28.9,0.998,0.961,marine,1.1219,flight-data-recorder summary (synthetic)
+AC001-F0009,134.8,1,0.9637,0.111,0.915,28.6,0.9889,1.181,humid,0.9745,flight-data-recorder summary (synthetic)
+AC001-F0010,122.6,1,0.9967,0.139,1.137,11.3,0.9941,1.095,benign,0.9747,flight-data-recorder summary (synthetic)
+AC001-F0011,89.2,1,1.0101,0.124,1.398,25.5,0.979,1.169,marine,1.1591,flight-data-recorder summary (synthetic)
+AC001-F0012,153.9,1,1.0657,0.121,0.894,26.2,0.9846,0.925,humid,0.9964,flight-data-recorder summary (synthetic)

@@ -1,0 +1,2 @@
+component_id,inspection_date,method,observed_defect,quantity,measured_value,unit,measurement_uncertainty,confidence,source,notes
+ENG-MOUNT-001,2026-11-04,ultrasonic,edge crack at lug bore,crack_length_m,6.3,mm,0.1,high,NDT report 1234,

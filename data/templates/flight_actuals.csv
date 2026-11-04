@@ -1,0 +1,2 @@
+flight_id,duration_min,landing_cycles,load_factor,load_variation,manoeuvre_intensity,temperature_c,pressure_factor,vibration_level,environment,operating_intensity,source
+AC001-F0013,122.4,1,1.02,0.12,1.1,24.0,1.0,1.0,benign,1.0,FDR summary

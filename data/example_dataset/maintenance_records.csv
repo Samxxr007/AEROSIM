@@ -1,0 +1,3 @@
+component_id,maintenance_date,activity,repair_or_replacement,damage_after_quantity,damage_after_value,maintenance_reference,notes
+ENG-MOUNT-001,2026-08-21,"Crack disposition: repair deferred, 60-day UT monitoring interval set",none,,,ENG-DISP-2026-0821,SYNTHETIC
+HYD-ACT-001,2026-09-20,"Piston seal set replaced (new seals, manufacturer kit)",repair,wear_indicator,0.02,WO-2026-1187,SYNTHETIC

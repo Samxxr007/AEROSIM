@@ -1,0 +1,2 @@
+aircraft_id,flight_date,route_or_mission,duration_min,landing_cycles,payload_fraction,expected_temperature_c,expected_environment,notes
+AIRCRAFT-001,2026-11-20,DEMO-A → DEMO-B,120,1,0.8,19.0,benign,scheduled rotation

@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: #f6f5f2;
+  --color-surface: #ffffff;
+  --color-line: #e3e1db;
+  --color-line-strong: #cfcbc2;
+  --color-ink: #1f2933;
+  --color-ink-2: #52606d;
+  --color-ink-3: #7b8794;
+  --color-graphite: #1b2430;
+  --color-graphite-2: #273241;
+  --color-accent: #1f6f8b;
+  --color-accent-2: #3fa7c9;
+  --color-accent-soft: #e6f1f5;
+  --color-amber: #b7791f;
+  --color-amber-soft: #fbf1df;
+  --color-red: #b3261e;
+  --color-red-soft: #fbe9e7;
+  --color-green: #2f7d4f;
+  --color-green-soft: #e7f3ec;
+  --color-violet: #5b4b8a;
+}
+
+html, body, #root { min-height: 100%; }
+body { @apply bg-paper text-ink font-sans antialiased text-[14px]; }
+h1, h2, h3 { @apply tracking-tight; }
+@utility label { @apply text-[11px] uppercase tracking-wider text-ink-3 font-medium; }
+@utility btn { @apply inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[13px] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility num { @apply font-mono tabular-nums; }
+@utility card { @apply bg-surface border border-line rounded-md; }
+@utility card-pad { @apply p-4; }
+@utility input { @apply w-full border border-line-strong rounded px-2 py-1.5 text-[13px] bg-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 disabled:bg-paper disabled:text-ink-3; }
+@utility btn-primary { @apply btn bg-accent text-white border-accent hover:bg-[#195c73]; }
+@utility btn-secondary { @apply btn bg-white text-ink border-line-strong hover:bg-paper; }
+@utility btn-ghost { @apply btn bg-transparent text-accent border-transparent hover:bg-accent-soft; }
+@utility btn-danger { @apply btn bg-white text-red border-red/40 hover:bg-red-soft; }
+@utility table { @apply w-full text-[13px]; }
+.table th { @apply text-left label py-2 px-2 border-b border-line bg-paper/60; }
+.table td { @apply py-1.5 px-2 border-b border-line/70 align-top; }
+.table tr:hover td { @apply bg-paper/50; }
+.recharts-cartesian-axis-tick-value { font-family: var(--font-mono); font-size: 11px; fill: #52606d; }
+.recharts-legend-item-text { font-size: 12px; }
+.recharts-default-tooltip { font-size: 12px !important; border: 1px solid #e3e1db !important; border-radius: 4px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cfcbc2; border-radius: 6px; border: 2px solid #f6f5f2; }

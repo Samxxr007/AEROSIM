@@ -1,0 +1,9 @@
+component_id,inspection_date,method,observed_defect,quantity,measured_value,unit,measurement_uncertainty,confidence,source,notes
+ENG-MOUNT-001,2026-08-20,ultrasonic,edge crack at lug bore (new finding),crack_length_m,5.8925,mm,0.3,high,synthetic inspection record,"SYNTHETIC — Scheduled UT; crack detected, repair deferred by engineering disposition."
+ENG-MOUNT-002,2026-08-20,fpi,no indication,,,,,high,synthetic inspection record,"SYNTHETIC — Scheduled FPI, no crack indication."
+TURB-BLADE-001,2026-09-10,borescope,"leading-edge discolouration, light oxidation",oxide_thickness_m,15.0,µm,8.0,low,synthetic inspection record,SYNTHETIC — Qualitative borescope estimate; not a thickness measurement.
+HYD-ACT-001,2026-09-20,leakage_test,internal leakage above alert level,wear_indicator,0.4064,-,0.02,high,synthetic inspection record,SYNTHETIC — Bench leakage test before seal replacement.
+LAND-GEAR-001,2026-09-25,eddy_current,corrosion pitting at lower fillet,pit_depth_m,133.1062,µm,10.0,medium,synthetic inspection record,SYNTHETIC — Scheduled EC survey.
+LAND-GEAR-002,2026-09-25,eddy_current,corrosion pitting at lower fillet,pit_depth_m,89.5821,µm,10.0,medium,synthetic inspection record,SYNTHETIC — Scheduled EC survey.
+ENG-MOUNT-001,2026-10-15,ultrasonic,edge crack at lug bore,crack_length_m,6.2079,mm,0.2,high,synthetic inspection record,SYNTHETIC — 60-day monitoring UT.
+HYD-ACT-001,2026-10-20,leakage_test,post-replacement check,wear_indicator,0.0059,-,0.02,high,synthetic inspection record,SYNTHETIC — Bench leakage test after seal replacement.
