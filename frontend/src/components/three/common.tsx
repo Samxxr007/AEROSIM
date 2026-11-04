@@ -64,13 +64,13 @@ export function Label({ position, children, tone = 'default', small = false }: {
     const canvas = document.createElement('canvas')
     const measure = canvas.getContext('2d')
     if (!measure) return null
-    measure.font = \`600 \${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace\`
+    measure.font = `600 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
     const width = Math.ceil(measure.measureText(label).width + paddingX * 2)
     canvas.width = Math.max(64, width)
     canvas.height = height
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
-    ctx.font = \`600 \${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace\`
+    ctx.font = `600 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
     ctx.textBaseline = 'middle'
     ctx.fillStyle = 'rgba(10, 15, 22, 0.90)'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
