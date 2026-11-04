@@ -38,4 +38,4 @@ def test_phm_validation_specimens_cannot_be_used_as_labelled_ground_truth(tmp_pa
     ).to_csv(tmp_path / "labels.csv", index=False)
     report = build_report(tmp_path)
     assert report["status"] == "invalid"
-    assert "no released crack-length ground truth" in report["error"]
+    assert "without released crack-length ground truth" in report["error"]
