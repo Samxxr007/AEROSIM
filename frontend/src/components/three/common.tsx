@@ -1,6 +1,6 @@
-import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { isValidElement, useEffect, useMemo, useRef } from 'react'
+import type { ReactNode } from 'react'
 import * as THREE from 'three'
 import type { LiveSignals } from './signals'
 import { heatColor } from './signals'
@@ -41,12 +41,58 @@ export function strainColor(f: number): THREE.Color {
   return c
 }
 
-export function Label({ position, children, tone = 'default', small = false }: { position: [number, number, number]; children: React.ReactNode; tone?: 'default' | 'warn' | 'bad' | 'good' | 'accent'; small?: boolean }) {
-  const color = tone === 'bad' ? 'border-red/60 text-red' : tone === 'warn' ? 'border-amber/60 text-amber' : tone === 'good' ? 'border-green/60 text-green' : tone === 'accent' ? 'border-accent/60 text-accent-2' : 'border-line-strong text-ink-2'
+function flattenLabelText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(flattenLabelText).join('')
+  if (isValidElement<{ children?: ReactNode }>(node)) return flattenLabelText(node.props.children)
+  return ''
+}
+
+/** Camera-facing engineering annotation rendered as a Three.js sprite.
+ *  Unlike drei Html portals this never inserts an extra DOM node beside the WebGL canvas,
+ *  so route changes/unmounts remain owned by the Three.js renderer.
+ */
+export function Label({ position, children, tone = 'default', small = false }: { position: [number, number, number]; children: ReactNode; tone?: 'default' | 'warn' | 'bad' | 'good' | 'accent'; small?: boolean }) {
+  const label = flattenLabelText(children).replace(/\s+/g, ' ').trim().slice(0, 120)
+  const color = tone === 'bad' ? '#f0605d' : tone === 'warn' ? '#f5b041' : tone === 'good' ? '#3ddc97' : tone === 'accent' ? '#7dd3fc' : '#c2ceda'
+  const texture = useMemo(() => {
+    if (typeof document === 'undefined' || !label) return null
+    const fontSize = small ? 19 : 23
+    const paddingX = small ? 10 : 12
+    const height = small ? 34 : 42
+    const canvas = document.createElement('canvas')
+    const measure = canvas.getContext('2d')
+    if (!measure) return null
+    measure.font = \`600 \${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace\`
+    const width = Math.ceil(measure.measureText(label).width + paddingX * 2)
+    canvas.width = Math.max(64, width)
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.font = \`600 \${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace\`
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = 'rgba(10, 15, 22, 0.90)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = tone === 'default' ? 'rgba(110, 130, 150, 0.8)' : color
+    ctx.lineWidth = 2
+    ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2)
+    ctx.fillStyle = color
+    ctx.fillText(label, paddingX, height / 2, canvas.width - paddingX * 2)
+    const map = new THREE.CanvasTexture(canvas)
+    map.colorSpace = THREE.SRGBColorSpace
+    map.minFilter = THREE.LinearFilter
+    map.magFilter = THREE.LinearFilter
+    map.needsUpdate = true
+    return map
+  }, [label, color, small, tone])
+  useEffect(() => () => texture?.dispose(), [texture])
+  if (!texture) return null
+  const image = texture.image as HTMLCanvasElement
   return (
-    <Html position={position} center distanceFactor={small ? 4.2 : 4.8} zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-      <div className={`whitespace-nowrap rounded border bg-[#0a0f16]/85 backdrop-blur px-1.5 py-0.5 font-mono text-[11px] leading-tight ${color}`}>{children}</div>
-    </Html>
+    <sprite position={position} scale={[Math.min(3.8, image.width / 200), image.height / 200, 1]} renderOrder={1000}>
+      <spriteMaterial map={texture} transparent depthWrite={false} />
+    </sprite>
   )
 }
 

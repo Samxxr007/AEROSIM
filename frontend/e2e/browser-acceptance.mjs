@@ -2,30 +2,39 @@ import { chromium } from 'playwright'
 
 const baseUrl = process.env.AEROSIM_E2E_URL ?? 'http://127.0.0.1:5173'
 const pageErrors = []
+let stage = 'browser setup'
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] })
 
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
   page.setDefaultTimeout(30000)
-  page.on('pageerror', (error) => pageErrors.push(error.message))
+  page.on('pageerror', (error) => pageErrors.push(stage + ' (' + page.url() + '): ' + error.message))
 
+  stage = 'overview load'
   await page.goto(baseUrl + '/overview', { waitUntil: 'networkidle' })
   await page.getByRole('heading', { name: 'Fleet overview', exact: true }).waitFor()
+  stage = 'component registry navigation'
+  stage = 'identity correction and component replacement'
   await page.getByRole('link', { name: 'Component registry' }).click()
   await page.getByRole('link', { name: 'ENG-MOUNT-001', exact: true }).click()
+  stage = 'component history tab'
   await page.getByRole('button', { name: 'Historical profile' }).click()
   await page.getByText('Historical sensor observations').waitFor()
+  stage = 'twin initialisation'
   await page.getByRole('button', { name: 'Initialise from history' }).click()
   await page.getByText(/ENG-MOUNT-001 initialised from its own history/).waitFor({ timeout: 90000 })
 
+  stage = 'flight completion'
   await page.getByRole('link', { name: 'Flights & schedule' }).click()
   await page.getByRole('button', { name: 'Complete flight (synthetic)' }).first().click()
   await page.getByText('AC001-F0013', { exact: true }).last().waitFor({ timeout: 30000 })
+  stage = 'prediction creation'
   await page.getByRole('link', { name: 'Upcoming-flight predictions' }).click()
   await page.getByRole('button', { name: 'Generate and store pre-flight prediction' }).waitFor()
   await page.getByRole('button', { name: 'Generate and store pre-flight prediction' }).click()
   await page.getByText(/Prediction pred-/).waitFor({ timeout: 30000 })
 
+  stage = 'PHM dataset readiness panel'
   await page.getByRole('link', { name: 'Validation' }).click()
   await page.getByText('External experimental benchmark — PHM 2019 aluminum lap joint').waitFor({ timeout: 300000 })
   await page.getByText('Dataset files not detected').waitFor({ timeout: 300000 })
