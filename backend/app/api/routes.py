@@ -942,3 +942,32 @@ def federated_aggregate(body: dict[str, Any]):
     if result["status"] == "aggregated":
         db.insert("federated_rounds", result, "fed")
     return result
+
+
+# ----------------------------------------------------------------- maintenance intelligence & operational risk
+@router.get("/maintenance-intelligence")
+def maintenance_intelligence():
+    """Fleet-wide explainable maintenance and operational risk prioritisation."""
+    from ..services import maintenance_intelligence as service
+    return service.fleet_recommendations(_db())
+
+
+@router.get("/components/{component_id}/maintenance-recommendations")
+def component_maintenance_recommendations(component_id: str):
+    """Contextual recommendations for one component, including related aircraft components."""
+    from ..services import maintenance_intelligence as service
+    db = _db()
+    components = [c for c in db.list("components") if c.get("lifecycle_status") != "retired"]
+    component = next((c for c in components if c["id"] == component_id), None)
+    if component is None:
+        raise HTTPException(404, "Component not found")
+    assessments = {c["id"]: component_assessment(c) for c in components}
+    scheduled = [f for f in db.list("flights", {"aircraft_id": component.get("aircraft_id")}) if f.get("status") == "scheduled"]
+    scheduled.sort(key=lambda f: f.get("flight_date") or "9999-99-99")
+    peers = service._relationships(component, components, assessments)
+    return service.recommend(
+        component, assessments[component_id], peers,
+        db.list("inspections", {"component_id": component_id}, newest_first=True),
+        db.list("maintenance", {"component_id": component_id}, newest_first=True),
+        scheduled[0] if scheduled else None,
+    )
