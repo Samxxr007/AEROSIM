@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { api } from '../api/client'
-import { Card, Callout, ErrorBox, Field, PageHeader, Spinner, Tag } from '../components/ui'
+import { Card, Callout, ErrorBox, Field, PageHeader, Tag } from '../components/ui'
 import { useAppStore } from '../store/useAppStore'
 import { useApi } from '../utils/useApi'
 
@@ -45,7 +45,7 @@ const demoRecords = [
 
 export default function ReliabilityPage() {
   const { selectedComponentId } = useAppStore()
-  const [trustRows, setTrustRows] = useState(demoRecords)
+  const [trustRows] = useState(demoRecords)
   const [trustResult, setTrustResult] = useState<{ total?: number; counts?: Record<string, number>; records?: TrustResult[] } | null>(null)
   const [trustBusy, setTrustBusy] = useState(false)
   const [trustError, setTrustError] = useState<unknown>(null)
@@ -118,7 +118,7 @@ export default function ReliabilityPage() {
     </div>
     <Card title="3 · Federated learning extension" subtitle="Three synthetic operator nodes contribute model parameters; raw flight and component records stay local." dense>
       <div className="grid md:grid-cols-3 gap-2 mb-3">
-        {['Operator A','Operator B','Operator C'].map((x,i) => <div className="border border-line rounded p-3" key={x}><div className="font-medium text-[12px]">{x}</div><div className="text-[11px] text-ink-3">Local component history · local twin state · local adaptation</div><div className="text-[10px] mt-2 text-green">Only model parameter update submitted</div></div>)}
+        {['Operator A','Operator B','Operator C'].map((x) => <div className="border border-line rounded p-3" key={x}><div className="font-medium text-[12px]">{x}</div><div className="text-[11px] text-ink-3">Local component history · local twin state · local adaptation</div><div className="text-[10px] mt-2 text-green">Only model parameter update submitted</div></div>)}
       </div>
       <div className="flex items-center gap-3 flex-wrap"><button className="btn-primary" onClick={runFederated} disabled={fedBusy}>{fedBusy ? 'Aggregating…' : 'Run federated aggregation demo'}</button><span className="text-[11px] text-ink-3">Sample-count-weighted FedAvg · no raw records transferred</span></div>
       <ErrorBox error={fedError as Error | null} />
@@ -127,7 +127,7 @@ export default function ReliabilityPage() {
         {fed.shared_parameters && <table className="table mt-2"><thead><tr><th>Shared parameter</th><th>Aggregated value</th></tr></thead><tbody>{Object.entries(fed.shared_parameters).map(([k,v]) => <tr key={k}><td>{k}</td><td className="num">{v.toFixed(5)}</td></tr>)}</tbody></table>}
         <p className="text-ink-3 mt-2">{fed.security_note}</p>
       </div>}
-      <Callout kind="warn" title="Extension prototype, not a secure deployment">Federated aggregation does not by itself guarantee privacy. Authentication, secure aggregation, differential privacy, poisoning defence and governance are not implemented. Local personalization and component histories remain separate.</Callout>
+      <Callout kind="warning" title="Extension prototype, not a secure deployment">Federated aggregation does not by itself guarantee privacy. Authentication, secure aggregation, differential privacy, poisoning defence and governance are not implemented. Local personalization and component histories remain separate.</Callout>
     </Card>
   </div>
 }

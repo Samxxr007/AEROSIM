@@ -1,0 +1,7 @@
+.git
+.github
+backend/aerosim.db
+backend/tests
+backend/__pycache__
+frontend/node_modules
+*.log

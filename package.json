@@ -1,0 +1,10 @@
+{
+  "name": "aerosim",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && pnpm run build",
+    "dev": "cd frontend && pnpm run dev",
+    "test": "cd frontend && pnpm run test"
+  }
+}

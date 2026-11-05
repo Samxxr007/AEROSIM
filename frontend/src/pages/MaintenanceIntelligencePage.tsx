@@ -12,7 +12,8 @@ type Recommendation = {
   assessment_status: string; potential_consequences: string[]; governing_mechanism?: string; remaining_life_flights?: number | null
   minimum_margin?: number | null; risk_drivers: Driver[]
   related_components: { component_id: string; name: string; relationship: string; assessment_status?: string; review_required: boolean }[]
-  maintenance_context?: { maintenance_date?: string; activity?: string; repair_or_replacement?: string; days_since?: number | null; reference?: string } | null\n  upcoming_flight?: { id?: string; flight_date?: string; route_or_mission?: string; operational_stressors?: string[] } | null
+  maintenance_context?: { maintenance_date?: string; activity?: string; repair_or_replacement?: string; days_since?: number | null; reference?: string } | null
+  upcoming_flight?: { id?: string; flight_date?: string; route_or_mission?: string; operational_stressors?: string[] } | null
   recommended_actions: Action[]; relationship_note: string; limitations: string[]
 }
 type FleetResult = { count: number; risk_distribution: Record<string, number>; recommendations: Recommendation[] }
