@@ -861,7 +861,9 @@ def activity(limit: int = Query(50, le=500)):
 def evaluate_data_trust(body: dict[str, Any]):
     """Evaluate an incoming record before it is admitted to learning workflows."""
     from ..services import data_trust
-    return data_trust.evaluate_record(body)
+    result = data_trust.evaluate_record(body)
+    _db().insert("data_trust_decisions", {"record_id": body.get("record_id") or body.get("id"), **result}, "trust")
+    return result
 
 
 @router.post("/data/trust/evaluate-batch")
@@ -870,7 +872,10 @@ def evaluate_data_trust_batch(body: dict[str, Any]):
     records = body.get("records")
     if not isinstance(records, list):
         raise HTTPException(422, "records must be an array")
-    return data_trust.evaluate_batch(records)
+    result = data_trust.evaluate_batch(records)
+    for record, evaluated in zip(records, result["records"]):
+        _db().insert("data_trust_decisions", {"record_id": evaluated.get("record_id"), **evaluated}, "trust")
+    return result
 
 
 @router.get("/data/trust/summary")
