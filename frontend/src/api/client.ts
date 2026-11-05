@@ -139,6 +139,8 @@ export const api = {
     return request<ImportResult>(`/data/import?dataset=${dataset}&commit=${commit}`, { method: 'POST', body: fd })
   },
   imports: () => get<unknown[]>('/data/imports'),
+  maintenanceIntelligence: () => get<Record<string, unknown>>('/maintenance-intelligence'),
+  componentMaintenanceRecommendations: (componentId: string) => get<Record<string, unknown>>(`/components/${componentId}/maintenance-recommendations`),
   dataTrustEvaluate: (body: Record<string, unknown>) => post<Record<string, unknown>>('/data/trust/evaluate', body),
   dataTrustBatch: (records: Record<string, unknown>[]) => post<Record<string, unknown>>('/data/trust/evaluate-batch', { records }),
   dataTrustSummary: () => get<Record<string, unknown>>('/data/trust/summary'),
