@@ -854,3 +854,96 @@ def list_imports():
 @router.get("/activity")
 def activity(limit: int = Query(50, le=500)):
     return _db().list("activity", newest_first=True, limit=limit)
+
+
+# ----------------------------------------------------------------- reliability extensions
+@router.post("/data/trust/evaluate")
+def evaluate_data_trust(body: dict[str, Any]):
+    """Evaluate an incoming record before it is admitted to learning workflows."""
+    from ..services import data_trust
+    return data_trust.evaluate_record(body)
+
+
+@router.post("/data/trust/evaluate-batch")
+def evaluate_data_trust_batch(body: dict[str, Any]):
+    from ..services import data_trust
+    records = body.get("records")
+    if not isinstance(records, list):
+        raise HTTPException(422, "records must be an array")
+    return data_trust.evaluate_batch(records)
+
+
+@router.get("/data/trust/summary")
+def data_trust_summary():
+    """Summarise trust decisions previously recorded by explicit evaluation calls."""
+    db = _db()
+    records = db.list("data_trust_decisions", newest_first=True)
+    counts = {k: sum(1 for r in records if r.get("decision") == k) for k in ("accept", "accept_reduced_confidence", "quarantine", "reject")}
+    return {"total": len(records), "counts": counts, "records": records[:100]}
+
+
+@router.post("/rul/conformal/{component_id}")
+def conformal_rul(component_id: str, alpha: float = Query(0.10, gt=0.0, lt=1.0), min_calibration: int = Query(20, ge=5, le=500)):
+    """Build chronological RUL calibration from historical completed reconciliations.
+
+    RUL residuals are sourced only from records explicitly carrying both predicted
+    and reference/observed RUL values. Missing target values are not fabricated.
+    """
+    from ..services import conformal
+    db = _db()
+    comp = db.get("components", component_id)
+    if comp is None:
+        raise HTTPException(404, "Component not found")
+    history_rows = []
+    for row in db.list("rul_calibration_records", {"component_id": component_id}):
+        history_rows.append(row)
+    if not history_rows:
+        # Existing experiment results may expose actual-vs-reference RUL, but do not
+        # assume that a final aggregate is a chronological per-flight calibration set.
+        current = component_assessment(comp).get("remaining_life") or {}
+        point = current.get("governing_remaining_flights")
+        if point is None:
+            return {"status": "insufficient_calibration_data", "calibrated": False, "reason": "No RUL point estimate or explicit historical RUL calibration records are available.", "interval": None, "calibration_count": 0}
+    else:
+        point = component_assessment(comp).get("remaining_life") or {}
+        point = point.get("governing_remaining_flights")
+        if point is None:
+            raise HTTPException(422, "Current component RUL estimate is unavailable.")
+    if point is None:
+        raise HTTPException(422, "Current component RUL estimate is unavailable.")
+    return conformal.calibrate_rul(history_rows, float(point), alpha=alpha, min_calibration=min_calibration)
+
+
+@router.post("/rul/conformal/{component_id}/records", status_code=201)
+def add_rul_calibration_record(component_id: str, body: dict[str, Any]):
+    """Append an explicitly paired historical RUL prediction/target for calibration."""
+    db = _db()
+    if db.get("components", component_id) is None:
+        raise HTTPException(404, "Component not found")
+    required = ("event_time", "flight_id", "predicted_rul", "actual_rul")
+    missing = [k for k in required if body.get(k) is None]
+    if missing:
+        raise HTTPException(422, "Missing required fields: " + ", ".join(missing))
+    try:
+        if float(body["predicted_rul"]) < 0 or float(body["actual_rul"]) < 0:
+            raise ValueError()
+    except (TypeError, ValueError):
+        raise HTTPException(422, "RUL values must be non-negative numbers.")
+    return db.insert("rul_calibration_records", {"component_id": component_id, **body, "provenance": body.get("provenance", "uploaded_or_manual_calibration_target")}, "rulcal")
+
+
+@router.post("/federated/aggregate")
+def federated_aggregate(body: dict[str, Any]):
+    """Optional multi-operator FedAvg simulation; only parameter updates are accepted."""
+    from ..services import federated
+    updates = body.get("updates")
+    if not isinstance(updates, list):
+        raise HTTPException(422, "updates must be an array")
+    try:
+        result = federated.aggregate_updates(updates, int(body.get("min_clients", 2)))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    db = _db()
+    if result["status"] == "aggregated":
+        db.insert("federated_rounds", result, "fed")
+    return result
