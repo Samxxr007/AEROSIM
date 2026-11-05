@@ -889,33 +889,23 @@ def data_trust_summary():
 
 @router.post("/rul/conformal/{component_id}")
 def conformal_rul(component_id: str, alpha: float = Query(0.10, gt=0.0, lt=1.0), min_calibration: int = Query(20, ge=5, le=500)):
-    """Build chronological RUL calibration from historical completed reconciliations.
+    """Build a chronological RUL interval from explicit historical RUL pairs.
 
-    RUL residuals are sourced only from records explicitly carrying both predicted
-    and reference/observed RUL values. Missing target values are not fabricated.
+    Actual RUL targets are never fabricated from Monte Carlo percentiles or the
+    current model state. Paired targets must come from completed flights.
     """
     from ..services import conformal
     db = _db()
     comp = db.get("components", component_id)
     if comp is None:
         raise HTTPException(404, "Component not found")
-    history_rows = []
-    for row in db.list("rul_calibration_records", {"component_id": component_id}):
-        history_rows.append(row)
-    if not history_rows:
-        # Existing experiment results may expose actual-vs-reference RUL, but do not
-        # assume that a final aggregate is a chronological per-flight calibration set.
-        current = component_assessment(comp).get("remaining_life") or {}
-        point = current.get("governing_remaining_flights")
-        if point is None:
-            return {"status": "insufficient_calibration_data", "calibrated": False, "reason": "No RUL point estimate or explicit historical RUL calibration records are available.", "interval": None, "calibration_count": 0}
-    else:
-        point = component_assessment(comp).get("remaining_life") or {}
-        point = point.get("governing_remaining_flights")
-        if point is None:
-            raise HTTPException(422, "Current component RUL estimate is unavailable.")
+    history_rows = db.list("rul_calibration_records", {"component_id": component_id})
+    current = component_assessment(comp).get("remaining_life") or {}
+    point = current.get("governing_remaining_flights")
     if point is None:
-        raise HTTPException(422, "Current component RUL estimate is unavailable.")
+        return {"status": "insufficient_calibration_data", "calibrated": False,
+                "reason": "The component has no supported current RUL point estimate.",
+                "interval": None, "calibration_count": len(history_rows)}
     return conformal.calibrate_rul(history_rows, float(point), alpha=alpha, min_calibration=min_calibration)
 
 
