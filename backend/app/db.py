@@ -35,6 +35,9 @@ COLLECTIONS = [
     "operational_records",
     "load_histories",
     "component_identity_events",
+    "data_trust_decisions",
+    "rul_calibration_records",
+    "federated_rounds",
 ]
 
 
