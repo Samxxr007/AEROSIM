@@ -118,10 +118,10 @@ def recommend(component, assessment, peers, inspections, maintenance, next_fligh
         maintenance_context = {
             "maintenance_date": mdate, "activity": latest_maintenance.get("activity"),
             "repair_or_replacement": latest_maintenance.get("repair_or_replacement"),
-            "days_since": None if days_since is None else -days_since,
+            "days_since": None if days_since is None else max(0, -days_since),
             "reference": latest_maintenance.get("maintenance_reference"),
         }
-        if latest_maintenance.get("repair_or_replacement") in ("repair", "replacement") and days_since is not None and -days_since <= 30:
+        if latest_maintenance.get("repair_or_replacement") in ("repair", "replacement") and days_since is not None and 0 <= -days_since <= 30:
             driver("recent_maintenance_verification", "moderate", "A repair or replacement is recorded within the last 30 days; verify close-out and post-maintenance evidence.")
             action("medium", "Verify maintenance release/close-out documentation and any required post-maintenance inspection or functional test; confirm the twin baseline reflects the completed work.", "Recent repair/replacement record is present.", "Before return to service, as required by approved procedures")
 
