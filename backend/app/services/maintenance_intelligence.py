@@ -110,6 +110,21 @@ def recommend(component, assessment, peers, inspections, maintenance, next_fligh
         driver("inspection_gap", "unknown", "No inspection record is available in AeroSim for this component.")
         action("medium", "Check the approved maintenance programme and determine whether baseline or targeted inspection is due.", "No inspection evidence is recorded in this dataset.", "Verify against approved maintenance programme")
 
+    latest_maintenance = maintenance[0] if maintenance else None
+    maintenance_context = None
+    if latest_maintenance:
+        mdate = latest_maintenance.get("maintenance_date") or latest_maintenance.get("event_time")
+        days_since = _days(mdate)
+        maintenance_context = {
+            "maintenance_date": mdate, "activity": latest_maintenance.get("activity"),
+            "repair_or_replacement": latest_maintenance.get("repair_or_replacement"),
+            "days_since": None if days_since is None else -days_since,
+            "reference": latest_maintenance.get("maintenance_reference"),
+        }
+        if latest_maintenance.get("repair_or_replacement") in ("repair", "replacement") and days_since is not None and -days_since <= 30:
+            driver("recent_maintenance_verification", "moderate", "A repair or replacement is recorded within the last 30 days; verify close-out and post-maintenance evidence.")
+            action("medium", "Verify maintenance release/close-out documentation and any required post-maintenance inspection or functional test; confirm the twin baseline reflects the completed work.", "Recent repair/replacement record is present.", "Before return to service, as required by approved procedures")
+
     flight_context = None
     if next_flight:
         env, temp, payload = next_flight.get("expected_environment"), next_flight.get("expected_temperature_c"), next_flight.get("payload_fraction")
@@ -149,7 +164,7 @@ def recommend(component, assessment, peers, inspections, maintenance, next_fligh
         "risk_score": score, "risk_level": level, "criticality_weight": criticality,\n        "potential_consequences": POTENTIAL_CONSEQUENCES.get(component.get("system"), ["Component-specific functional impact requires engineering assessment."]),
         "assessment_status": status, "governing_mechanism": rul_data.get("governing_mechanism"),
         "remaining_life_flights": rul, "minimum_margin": margin,
-        "risk_drivers": drivers, "related_components": peers, "upcoming_flight": flight_context,
+        "risk_drivers": drivers, "related_components": peers, "maintenance_context": maintenance_context, "upcoming_flight": flight_context,
         "recommended_actions": actions,
         "relationship_note": "Related components are inferred from same-aircraft system, part number or LH/RH position. These are contextual associations, not validated causal propagation paths.",
         "limitations": ["Risk score is a transparent prototype prioritisation index, not a validated probability of failure.", "Recommendations are advisory and do not replace approved maintenance data, OEM limits, licensed engineering review or dispatch authority.", "Only implemented component models contribute quantitative RUL and margin evidence."],
