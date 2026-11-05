@@ -9,7 +9,7 @@ type Action = { priority: string; action: string; basis: string; timing: string 
 type Driver = { factor: string; severity: string; evidence: string }
 type Recommendation = {
   component_id: string; component_name: string; risk_score: number; risk_level: string
-  assessment_status: string; governing_mechanism?: string; remaining_life_flights?: number | null
+  assessment_status: string; potential_consequences: string[]; governing_mechanism?: string; remaining_life_flights?: number | null
   minimum_margin?: number | null; risk_drivers: Driver[]
   related_components: { component_id: string; name: string; relationship: string; assessment_status?: string; review_required: boolean }[]
   upcoming_flight?: { id?: string; flight_date?: string; route_or_mission?: string; operational_stressors?: string[] } | null
@@ -60,6 +60,10 @@ export default function MaintenanceIntelligencePage() {
               <div className="border border-line rounded p-2"><div className="text-ink-3">Mechanism</div><div className="text-[12px] mt-1">{active.governing_mechanism ?? '—'}</div></div>
             </div>
             <Link className="text-accent text-[11px] inline-block mt-3 hover:underline" to={`/components/${active.component_id}`}>Open component digital twin →</Link>
+          </Card>
+          <Card title="Potential failure consequences" dense>
+            <ul className="list-disc pl-4 space-y-1 text-[11.5px] text-ink-2">{active.potential_consequences?.map(x=><li key={x}>{x}</li>)}</ul>
+            <div className="text-[10px] text-ink-3 mt-2">System-level consequence context only; actual severity depends on aircraft configuration, failure mode, redundancy and approved safety assessment.</div>
           </Card>
           <Card title="Recommended maintenance & operational actions" subtitle="Prioritised actions with evidence and timing">
             <div className="space-y-2">
