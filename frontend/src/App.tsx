@@ -33,6 +33,7 @@ export function AppRoutes() {
         <Route path="/inspections" element={<InspectionsPage />} />
         <Route path="/model-history" element={<ModelHistoryPage />} />
         <Route path="/validation" element={<ValidationPage />} />
+        <Route path="/reliability" element={<ReliabilityPage />} />
         <Route path="/methodology" element={<MethodologyPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/overview" replace />} />
