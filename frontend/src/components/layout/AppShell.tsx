@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Activity, BookOpen, ClipboardCheck, Cog, FlaskConical, GitCompare, History, LayoutDashboard, Layers, Plane, Radio, Target, X } from 'lucide-react'
+import { Activity, BookOpen, ClipboardCheck, Cog, FlaskConical, GitCompare, History, LayoutDashboard, Layers, Plane, Radio, Target, ShieldCheck, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
 import { useLiveFeed } from '../../store/useLive'
@@ -14,6 +14,7 @@ const NAV: { to: string; label: string; icon: typeof LayoutDashboard; group: str
   { to: '/inspections', label: 'Inspections & maintenance', icon: ClipboardCheck, group: 'Component twins' },
   { to: '/model-history', label: 'Model evolution', icon: History, group: 'Component twins' },
   { to: '/validation', label: 'Validation', icon: FlaskConical, group: 'Component twins' },
+  { to: '/reliability', label: 'Reliability & trust', icon: ShieldCheck, group: 'Component twins' },
   { to: '/missions', label: 'What-if: mission studio', icon: Activity, group: 'Engineering what-if' },
   { to: '/simulation', label: 'What-if: sequence simulation', icon: Activity, group: 'Engineering what-if' },
   { to: '/methodology', label: 'Methodology', icon: BookOpen, group: 'Reference' },
