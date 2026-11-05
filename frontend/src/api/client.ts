@@ -139,5 +139,11 @@ export const api = {
     return request<ImportResult>(`/data/import?dataset=${dataset}&commit=${commit}`, { method: 'POST', body: fd })
   },
   imports: () => get<unknown[]>('/data/imports'),
+  dataTrustEvaluate: (body: Record<string, unknown>) => post<Record<string, unknown>>('/data/trust/evaluate', body),
+  dataTrustBatch: (records: Record<string, unknown>[]) => post<Record<string, unknown>>('/data/trust/evaluate-batch', { records }),
+  dataTrustSummary: () => get<Record<string, unknown>>('/data/trust/summary'),
+  conformalRul: (componentId: string, alpha = 0.1, minCalibration = 20) => get<Record<string, unknown>>(`/rul/conformal/${componentId}?alpha=${alpha}&min_calibration=${minCalibration}`),
+  addRulCalibrationRecord: (componentId: string, body: Record<string, unknown>) => post<Record<string, unknown>>(`/rul/conformal/${componentId}/records`, body),
+  federatedAggregate: (updates: Record<string, unknown>[], minClients = 2) => post<Record<string, unknown>>('/federated/aggregate', { updates, min_clients: minClients }),
   activity: () => get<Overview['recent_activity']>('/activity'),
 }
