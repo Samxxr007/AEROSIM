@@ -12,7 +12,7 @@ type Recommendation = {
   assessment_status: string; potential_consequences: string[]; governing_mechanism?: string; remaining_life_flights?: number | null
   minimum_margin?: number | null; risk_drivers: Driver[]
   related_components: { component_id: string; name: string; relationship: string; assessment_status?: string; review_required: boolean }[]
-  upcoming_flight?: { id?: string; flight_date?: string; route_or_mission?: string; operational_stressors?: string[] } | null
+  maintenance_context?: { maintenance_date?: string; activity?: string; repair_or_replacement?: string; days_since?: number | null; reference?: string } | null\n  upcoming_flight?: { id?: string; flight_date?: string; route_or_mission?: string; operational_stressors?: string[] } | null
   recommended_actions: Action[]; relationship_note: string; limitations: string[]
 }
 type FleetResult = { count: number; risk_distribution: Record<string, number>; recommendations: Recommendation[] }
@@ -81,6 +81,7 @@ export default function MaintenanceIntelligencePage() {
             {active.related_components.length ? <div className="space-y-2">{active.related_components.map(p=><div key={p.component_id} className="flex justify-between gap-2 text-[11px] border-b border-line pb-2"><div><Link className="text-accent hover:underline" to={`/components/${p.component_id}`}>{p.name}</Link><div className="text-ink-3">{p.relationship.replaceAll('_',' ')}</div></div><Tag kind={p.review_required?'warn':'info'}>{p.assessment_status ?? 'not assessed'}</Tag></div>)}</div> : <div className="text-[11px] text-ink-3">No related component instances identified from available aircraft, system, part-number and position metadata.</div>}
             <div className="text-[10px] text-ink-3 mt-2">{active.relationship_note}</div>
           </Card>
+          {active.maintenance_context && <Card title="Maintenance history context" dense><div className="text-[12px]">{active.maintenance_context.maintenance_date} · {active.maintenance_context.repair_or_replacement}</div><div className="text-[11px] text-ink-3 mt-1">{active.maintenance_context.activity} · {active.maintenance_context.days_since ?? '—'} days since record</div></Card>}
           {active.upcoming_flight && <Card title="Upcoming operational exposure" dense><div className="text-[12px]">{active.upcoming_flight.flight_date} · {active.upcoming_flight.route_or_mission}</div><div className="text-[11px] text-ink-3 mt-1">{active.upcoming_flight.operational_stressors?.join(' · ') || 'No elevated mission stressors identified in available schedule fields.'}</div></Card>}
           <Card title="Model limitations" dense><ul className="list-disc pl-4 space-y-1 text-[10.5px] text-ink-3">{active.limitations.map(x=><li key={x}>{x}</li>)}</ul></Card>
         </div> : <Card><div className="text-[12px] text-ink-3">Select a component from the fleet risk register.</div></Card>}
