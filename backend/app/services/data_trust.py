@@ -29,7 +29,8 @@ def evaluate_record(record: dict[str, Any]) -> dict[str, Any]:
     reasons: list[str] = []
     provenance = str(record.get("provenance") or record.get("source") or "").lower()
     source_id = record.get("source_id") or record.get("source") or record.get("filename")
-    if not provenance or not source_id:
+    provenance_missing = not provenance or not source_id
+    if provenance_missing:
         reasons.append("Source provenance or source identifier is missing.")
 
     required = record.get("required_fields") or []
@@ -90,7 +91,7 @@ def evaluate_record(record: dict[str, Any]) -> dict[str, Any]:
         decision = REJECT
     elif record.get("cross_source_conflict") or score < 0.45:
         decision = QUARANTINE
-    elif score < 0.8 or missing:
+    elif provenance_missing or score < 0.8 or missing:
         decision = REDUCED
     else:
         decision = ACCEPT
