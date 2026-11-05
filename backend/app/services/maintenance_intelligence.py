@@ -13,6 +13,32 @@ CRITICALITY = {
     "Electrical systems": .86, "Environmental control": .55,
 }
 
+POTENTIAL_CONSEQUENCES = {
+    "Propulsion": ["loss or reduction of thrust capability", "engine performance degradation", "potential in-flight operational disruption"],
+    "Engine mounting and support": ["loss of structural load-transfer capability", "engine/pylon attachment integrity concern", "potential aircraft dispatch and continued-operation impact"],
+    "Airframe and structures": ["reduced structural load capacity", "damage propagation under repeated loading", "potential structural integrity concern"],
+    "Flight controls": ["reduced control-surface actuation capability", "control response degradation", "potential controllability impact"],
+    "Hydraulic systems": ["loss or reduction of hydraulic pressure/actuation", "degraded operation of dependent systems", "potential system redundancy impact"],
+    "Landing gear": ["degraded landing or ground-load capability", "braking or retraction function impairment", "potential landing/ground-operation impact"],
+    "Fuel systems": ["fuel delivery or containment degradation", "engine feed interruption or leakage concern", "potential propulsion and fire-safety impact"],
+    "Electrical systems": ["power distribution or generation degradation", "loss of dependent electrical functions", "potential avionics/system availability impact"],
+    "Environmental control": ["reduced cabin/environmental control performance", "crew/passenger environmental comfort impact"],
+}
+"Explainable context-aware maintenance and operational risk recommendations.
+
+Advisory research-prototype logic. It does not make airworthiness or dispatch decisions.
+"""
+from __future__ import annotations
+from datetime import date
+from typing import Any
+
+CRITICALITY = {
+    "Propulsion": 1.00, "Engine mounting and support": 1.00,
+    "Airframe and structures": .98, "Flight controls": .98,
+    "Fuel systems": .94, "Hydraulic systems": .90, "Landing gear": .88,
+    "Electrical systems": .86, "Environmental control": .55,
+}
+
 def _days(value):
     try: return (date.fromisoformat(str(value)[:10]) - date.today()).days
     except (ValueError, TypeError): return None
@@ -120,7 +146,7 @@ def recommend(component, assessment, peers, inspections, maintenance, next_fligh
     level = "critical" if score >= 80 else "high" if score >= 60 else "moderate" if score >= 40 else "low"
     return {
         "component_id": component["id"], "component_name": component.get("name"),
-        "risk_score": score, "risk_level": level, "criticality_weight": criticality,
+        "risk_score": score, "risk_level": level, "criticality_weight": criticality,\n        "potential_consequences": POTENTIAL_CONSEQUENCES.get(component.get("system"), ["Component-specific functional impact requires engineering assessment."]),
         "assessment_status": status, "governing_mechanism": rul_data.get("governing_mechanism"),
         "remaining_life_flights": rul, "minimum_margin": margin,
         "risk_drivers": drivers, "related_components": peers, "upcoming_flight": flight_context,
