@@ -14,6 +14,8 @@ import ReconciliationPage from './pages/ReconciliationPage'
 import SettingsPage from './pages/SettingsPage'
 import SimulationPage from './pages/SimulationPage'
 import ValidationPage from './pages/ValidationPage'
+import MaintenanceIntelligencePage from './pages/MaintenanceIntelligencePage'
+import ReliabilityPage from './pages/ReliabilityPage'
 
 export function AppRoutes() {
   return (
