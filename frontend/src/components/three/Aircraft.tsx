@@ -55,8 +55,8 @@ export default function Aircraft({ hotspots, phase = 'idle', selected, onSelect,
   const gear = useRef<THREE.Group>(null)
   const fans = useRef<THREE.Group[]>([])
   const [hover, setHover] = useState<string | null>(null)
-  const wing = useMemo(() => wingGeometry(3.3, 1.25, 0.45, 0.9, 0.09), [])
-  const htail = useMemo(() => wingGeometry(1.15, 0.6, 0.3, 0.4, 0.05), [])
+  const wing = useMemo(() => wingGeometry(3.3, 1.25, 0.45, -0.9, 0.09), [])
+  const htail = useMemo(() => wingGeometry(1.15, 0.6, 0.3, -0.4, 0.05), [])
   const skin = useMemo(() => new THREE.MeshStandardMaterial({ color: '#d7dee7', metalness: 0.35, roughness: 0.45 }), [])
   const dark = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a3442', metalness: 0.6, roughness: 0.6 }), [])
 
